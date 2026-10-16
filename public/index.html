@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Defer — L'IA qui gère votre administratif</title>
+  <meta name="description" content="Defer est un assistant IA qui gère l'administratif des artisans et des foyers : échéances, budget, courriers, devis et factures.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="logo" href="/"><span class="logo-mark">D</span>Defer</a>
+      <nav class="nav">
+        <a class="link" href="#fonctionnalites">Fonctionnalités</a>
+        <a class="link" href="#tarifs">Tarifs</a>
+        <a class="link" href="#faq">FAQ</a>
+        <span id="nav-auth">
+          <a class="btn btn-small hide-mobile" href="/connexion">Connexion</a>
+          <a class="btn btn-small btn-primary" href="/inscription">Essayer gratuitement</a>
+        </span>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Votre administratif, géré par une IA.</h1>
+        <p class="lead">Devis, factures, relances, échéances, budget, courriers… Defer s'occupe de la paperasse des artisans et des foyers. Vous lui parlez normalement, il s'occupe du reste.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="/inscription?profil=artisan">Je suis artisan</a>
+          <a class="btn" href="/inscription?profil=foyer">Je gère mon foyer</a>
+        </div>
+        <p class="muted small" style="margin-top: 12px">Déjà inscrit ? <a href="/connexion">Se connecter</a></p>
+        <div class="card chat-demo" aria-label="Exemple de conversation">
+          <div class="bubble user">Fais un devis pour Mme Martin : pose de 12 m² de carrelage à 45 € le m² et 2 h de préparation à 40 €.</div>
+          <div class="bubble assistant">C'est fait ✅ Devis <strong>D-2026-0014</strong> créé pour Mme Martin : 620,00 € HT, soit 744,00 € TTC (TVA 20 %). Il est valable 30 jours. Voulez-vous que je prépare l'email d'envoi ?</div>
+          <div class="bubble user">Rappelle-moi de payer la taxe foncière le 15 octobre, 1 240 €.</div>
+          <div class="bubble assistant">Échéance ajoutée : <strong>Taxe foncière</strong>, 1 240 €, à régler avant le 15/10. Je la reporterai chaque année.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="fonctionnalites">
+      <div class="container">
+        <h2>Tout l'administratif au même endroit</h2>
+        <p class="muted">Un assistant qui comprend ce que vous lui demandez et agit directement dans votre espace.</p>
+        <div class="grid-3">
+          <div class="card feature"><div class="icon">🧾</div><h3>Devis et factures</h3><p class="muted">Créez un devis en une phrase, transformez-le en facture, numérotation et TVA automatiques, PDF prêt à envoyer.</p></div>
+          <div class="card feature"><div class="icon">⏰</div><h3>Échéances et rappels</h3><p class="muted">Impôts, URSSAF, TVA, assurances, loyer, abonnements : rien n'est oublié, les échéances récurrentes se renouvellent seules.</p></div>
+          <div class="card feature"><div class="icon">💶</div><h3>Budget</h3><p class="muted">Notez vos dépenses et revenus en langage naturel et suivez votre solde du mois par catégorie.</p></div>
+          <div class="card feature"><div class="icon">✉️</div><h3>Courriers administratifs</h3><p class="muted">Résiliation, réclamation, demande de délai de paiement, relance client : des lettres complètes, prêtes à envoyer.</p></div>
+          <div class="card feature"><div class="icon">👥</div><h3>Fichier clients</h3><p class="muted">Vos clients, leurs coordonnées, leurs devis et factures, et le suivi des impayés.</p></div>
+          <div class="card feature"><div class="icon">💬</div><h3>Réponses à vos questions</h3><p class="muted">« Quand dois-je déclarer ma TVA ? », « Comment contester une amende ? » — des explications claires sur les démarches.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="tarifs">
+      <div class="container">
+        <h2>Des tarifs simples</h2>
+        <p class="muted">Sans engagement, résiliable à tout moment.</p>
+        <div class="pricing">
+          <div class="card price-card">
+            <h3>Gratuit</h3>
+            <div class="price">0 € <small>/ mois</small></div>
+            <p class="muted small">Pour découvrir, accès très limité</p>
+            <ul>
+              <li>10 messages à l'assistant IA par mois</li>
+              <li>5 échéances suivies</li>
+              <li class="no">Budget</li>
+              <li class="no">Devis, factures et clients</li>
+            </ul>
+            <a class="btn btn-block" href="/inscription">Commencer gratuitement</a>
+          </div>
+          <div class="card price-card">
+            <h3>Foyer</h3>
+            <div class="price">4,99 € <small>/ mois</small></div>
+            <p class="muted small">Toute l'administration de la maison</p>
+            <ul>
+              <li>300 messages IA par mois</li>
+              <li>Échéances illimitées et récurrentes</li>
+              <li>Suivi du budget du foyer</li>
+              <li>Rédaction de courriers administratifs</li>
+              <li class="no">Devis, factures et clients</li>
+            </ul>
+            <a class="btn btn-block" href="/inscription?profil=foyer&offre=foyer">Choisir Foyer</a>
+          </div>
+          <div class="card price-card featured">
+            <h3>Artisan <span class="badge badge-ok">Le plus complet</span></h3>
+            <div class="price">29,99 € <small>/ mois HT</small></div>
+            <p class="muted small">Devis, factures, clients et relances</p>
+            <ul>
+              <li>2 000 messages IA par mois</li>
+              <li>Devis et factures illimités (PDF)</li>
+              <li>Transformation devis → facture</li>
+              <li>Fichier clients et suivi des impayés</li>
+              <li>Échéances URSSAF, TVA, fournisseurs</li>
+              <li>Budget et courriers inclus</li>
+            </ul>
+            <a class="btn btn-primary btn-block" href="/inscription?profil=artisan&offre=artisan">Choisir Artisan</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block faq" id="faq">
+      <div class="container" style="max-width: 760px">
+        <h2>Questions fréquentes</h2>
+        <details><summary>L'IA remplace-t-elle mon expert-comptable ?</summary><p class="muted">Non. Defer vous fait gagner du temps sur la gestion quotidienne (devis, factures, échéances, courriers) et vous explique les démarches. Pour les décisions fiscales ou juridiques importantes, un professionnel reste recommandé.</p></details>
+        <details><summary>Puis-je changer d'offre ?</summary><p class="muted">Oui, à tout moment depuis la page Abonnement de votre espace. Le passage à l'offre gratuite conserve vos données.</p></details>
+        <details><summary>Mes données sont-elles en sécurité ?</summary><p class="muted">Vos données restent dans votre espace, protégé par mot de passe. Elles ne sont utilisées que pour vous rendre service.</p></details>
+        <details><summary>Que se passe-t-il quand j'atteins la limite de messages ?</summary><p class="muted">L'assistant se met en pause jusqu'au mois suivant. Vous pouvez toujours consulter et gérer vos données manuellement, ou passer à une offre supérieure.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">© <span id="year"></span> Defer — L'assistant administratif des artisans et des foyers.</div>
+  </footer>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    fetch('/api/me').then((r) => {
+      if (r.ok) document.getElementById('nav-auth').innerHTML = '<a class="btn btn-small btn-primary" href="/app">Mon espace</a>';
+    }).catch(() => {});
+  </script>
+</body>
+</html>

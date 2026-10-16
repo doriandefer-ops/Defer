@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mon espace — Defer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="mobile-bar">
+    <a class="logo" href="/"><span class="logo-mark">D</span>Defer</a>
+    <button class="btn btn-small" id="menu-btn" aria-label="Menu">☰ Menu</button>
+  </div>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <a class="logo" href="/"><span class="logo-mark">D</span>Defer</a>
+      <nav id="nav"></nav>
+      <div class="spacer"></div>
+      <div class="plan-box" id="plan-box"></div>
+      <button class="btn btn-small" id="logout" style="margin-top: 8px">Se déconnecter</button>
+    </aside>
+    <main class="main" id="view" aria-live="polite"></main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

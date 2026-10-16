@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inscription — Defer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header"><div class="container"><a class="logo" href="/"><span class="logo-mark">D</span>Defer</a></div></header>
+  <div class="auth-wrap">
+    <form class="card auth-card" id="form">
+      <h1>Créer mon compte</h1>
+      <p class="muted small">Gratuit, sans carte bancaire. Vous pourrez changer d'offre à tout moment.</p>
+      <div class="choice">
+        <input type="radio" name="accountType" id="t-foyer" value="foyer" checked><label for="t-foyer">🏠 Foyer</label>
+        <input type="radio" name="accountType" id="t-artisan" value="artisan"><label for="t-artisan">🛠️ Artisan</label>
+      </div>
+      <div class="field"><label for="name" id="name-label">Votre nom</label><input id="name" name="name" autocomplete="name" required></div>
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="password">Mot de passe (8 caractères minimum)</label><input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required></div>
+      <p class="error" id="error"></p>
+      <button class="btn btn-primary btn-block" type="submit">Créer mon compte</button>
+      <p class="muted small" style="margin-top: 1em">Déjà inscrit ? <a href="/connexion">Se connecter</a></p>
+    </form>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    if (params.get('profil') === 'artisan') document.getElementById('t-artisan').checked = true;
+    const updateLabel = () => {
+      const artisan = document.getElementById('t-artisan').checked;
+      document.getElementById('name-label').textContent = artisan ? "Nom de l'entreprise ou votre nom" : 'Votre nom';
+    };
+    document.querySelectorAll('[name=accountType]').forEach((el) => el.addEventListener('change', updateLabel));
+    updateLabel();
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const body = await res.json();
+      if (!res.ok) return (document.getElementById('error').textContent = body.error);
+      const offre = params.get('offre');
+      location.href = offre === 'foyer' || offre === 'artisan' ? `/app#abonnement` : '/app';
+    });
+  </script>
+</body>
+</html>
