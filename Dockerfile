@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY src ./src
 COPY public ./public
+COPY scripts ./scripts
 ENV PORT=3000 DATABASE_PATH=/data/defer.db
 RUN mkdir -p /data
 VOLUME /data
