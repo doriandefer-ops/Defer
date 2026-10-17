@@ -137,3 +137,32 @@ test('outils IA filtrés selon l’offre', () => {
   assert.ok(!names('foyer').includes('creer_document'));
   assert.ok(names('artisan').includes('creer_document'));
 });
+
+test('en production sans Stripe, les offres payantes ne sont pas accordées gratuitement', async () => {
+  process.env.NODE_ENV = 'production';
+  try {
+    const a = agent();
+    await a('/auth/register', { method: 'POST', body: { email: 'prod@test.fr', password: 'motdepasse', name: 'Eve' } });
+    const r = await a('/billing/checkout', { method: 'POST', body: { plan: 'artisan' } });
+    assert.equal(r.status, 503);
+    assert.equal((await a('/me')).body.plan.id, 'gratuit');
+    assert.equal((await a('/me')).body.demoBilling, false);
+  } finally {
+    delete process.env.NODE_ENV;
+  }
+});
+
+test('export des données et suppression du compte', async () => {
+  const a = agent();
+  await a('/auth/register', { method: 'POST', body: { email: 'rgpd@test.fr', password: 'motdepasse', name: 'Fred' } });
+  await a('/echeances', { method: 'POST', body: { title: 'Impôts', due_date: '2026-11-15' } });
+  const exp = await a('/me/export');
+  assert.equal(exp.body.compte.email, 'rgpd@test.fr');
+  assert.equal(exp.body.echeances.length, 1);
+
+  assert.equal((await a('/me', { method: 'DELETE', body: { password: 'mauvais!' } })).status, 401);
+  assert.equal((await a('/me', { method: 'DELETE', body: { password: 'motdepasse' } })).status, 200);
+  assert.equal((await a('/me')).status, 401);
+  const b = agent();
+  assert.equal((await b('/auth/login', { method: 'POST', body: { email: 'rgpd@test.fr', password: 'motdepasse' } })).status, 401);
+});

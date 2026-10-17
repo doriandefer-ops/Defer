@@ -11,6 +11,22 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
+// En-têtes de sécurité de base
+app.use((_req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  });
+  if (process.env.NODE_ENV === 'production') {
+    res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
+
 // Le webhook Stripe a besoin du corps brut : il est déclaré avant express.json().
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billing.handleWebhook);
 
@@ -29,7 +45,7 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 const id = (req) => Number(req.params.id);
 
 // ---------- Public ----------
-app.get('/api/plans', (_req, res) => res.json({ plans: publicPlans(), demoBilling: billing.isDemo() }));
+app.get('/api/plans', (_req, res) => res.json({ plans: publicPlans(), demoBilling: billing.isDemo() && billing.demoAllowed() }));
 
 // ---------- Authentification ----------
 app.post('/api/auth/register', auth.rateLimit(10, 15 * 60 * 1000), (req, res) => {
@@ -75,7 +91,7 @@ api.get('/me', (req, res) => {
     user: auth.publicUser(req.user),
     plan: publicPlans().find((p) => p.id === getPlan(req.user.plan).id),
     usage: svc.getUsage(req.user),
-    demoBilling: billing.isDemo(),
+    demoBilling: billing.isDemo() && billing.demoAllowed(),
   });
 });
 
@@ -98,6 +114,32 @@ api.patch('/me', (req, res) => {
     if (v !== undefined) db.prepare(`UPDATE users SET ${k} = ? WHERE id = ?`).run(v, req.user.id);
   }
   res.json({ user: auth.publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)) });
+});
+
+// Suppression du compte et de toutes les données (droit à l'effacement, RGPD)
+api.delete('/me', wrap(async (req, res) => {
+  if (!auth.verifyPassword(String(req.body.password || ''), req.user.password_hash)) {
+    throw new svc.AppError('Mot de passe incorrect.', 401);
+  }
+  await billing.cancelSubscription(req.user);
+  db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
+  auth.destroySession(req, res);
+  res.json({ ok: true });
+}));
+
+// Export de toutes les données de l'utilisateur (droit à la portabilité, RGPD)
+api.get('/me/export', (req, res) => {
+  const uid = req.user.id;
+  const all = (table) => db.prepare(`SELECT * FROM ${table} WHERE user_id = ?`).all(uid);
+  res.set('Content-Disposition', 'attachment; filename="defer-mes-donnees.json"');
+  res.json({
+    compte: auth.publicUser(req.user),
+    echeances: all('echeances'),
+    operations: all('transactions'),
+    clients: all('clients'),
+    documents: all('documents').map((d) => ({ ...d, items: JSON.parse(d.items) })),
+    conversation: all('chat_messages'),
+  });
 });
 
 api.get('/dashboard', (req, res) => res.json(svc.dashboard(req.user)));
@@ -178,7 +220,8 @@ if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
   app.listen(port, () => {
     console.log(`Defer est lancé sur http://localhost:${port}`);
-    if (billing.isDemo()) console.log('Paiements : mode démo (STRIPE_SECRET_KEY non défini).');
+    if (billing.isDemo() && billing.demoAllowed()) console.log('Paiements : mode démo (STRIPE_SECRET_KEY non défini).');
+    if (billing.isDemo() && !billing.demoAllowed()) console.log('Paiements : Stripe non configuré, les abonnements payants sont désactivés.');
     if (!process.env.ANTHROPIC_API_KEY) console.log("Assistant IA : ANTHROPIC_API_KEY non défini, l'assistant sera indisponible.");
   });
 }

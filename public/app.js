@@ -134,12 +134,17 @@ async function refreshMe() {
   renderNav();
 }
 
-async function router() {
-  document.getElementById('sidebar').classList.remove('open');
-  renderNav();
-  const { route, query } = currentRoute();
-  view.innerHTML = '<p class="muted">Chargement…</p>';
-  await attempt(() => route.render(query));
+// Les rendus sont enchaînés : une page lente à charger ne peut pas écraser celle demandée ensuite.
+let routing = Promise.resolve();
+function router() {
+  routing = routing.then(async () => {
+    document.getElementById('sidebar').classList.remove('open');
+    renderNav();
+    const { route, query } = currentRoute();
+    view.innerHTML = '<p class="muted">Chargement…</p>';
+    await attempt(() => route.render(query));
+  });
+  return routing;
 }
 
 // ---------- Tableau de bord ----------
@@ -639,13 +644,30 @@ async function renderSettings() {
         </div>
         <div class="field"><label>Adresse</label><textarea name="address" rows="2">${esc(u.address || '')}</textarea></div>` : ''}
       <button class="btn btn-primary" type="submit">Enregistrer</button>
-    </form>`;
+    </form>
+    <div class="card" style="max-width:640px;margin-top:16px">
+      <h2>Mes données</h2>
+      <p class="muted small">Téléchargez l’ensemble de vos données ou supprimez définitivement votre compte.</p>
+      <a class="btn" href="/api/me/export" download>Télécharger mes données</a>
+      <form id="delete-form" style="margin-top:20px">
+        <div class="field"><label>Mot de passe pour confirmer la suppression</label><input name="password" type="password" autocomplete="current-password" required></div>
+        <button class="btn btn-danger" type="submit">Supprimer mon compte</button>
+      </form>
+    </div>`;
   document.getElementById('form').addEventListener('submit', (e) =>
     attempt(async () => {
       e.preventDefault();
       await api('/me', { method: 'PATCH', body: Object.fromEntries(new FormData(e.target)) });
       await refreshMe();
       toast('Paramètres enregistrés');
+    }),
+  );
+  document.getElementById('delete-form').addEventListener('submit', (e) =>
+    attempt(async () => {
+      e.preventDefault();
+      if (!confirm('Supprimer définitivement votre compte et toutes vos données ? Cette action est irréversible.')) return;
+      await api('/me', { method: 'DELETE', body: Object.fromEntries(new FormData(e.target)) });
+      location.href = '/';
     }),
   );
 }

@@ -183,3 +183,6 @@ td.actions { text-align: right; white-space: nowrap; }
 .hidden { display: none !important; }
 #nav-auth { display: flex; gap: 8px; }
 @media (max-width: 480px) { .hide-mobile { display: none; } }
+.legal-page { max-width: 760px; padding-top: 40px; padding-bottom: 56px; }
+.legal-page h2 { font-size: 1.15rem; margin-top: 1.6em; }
+.site-footer a { color: var(--muted); }

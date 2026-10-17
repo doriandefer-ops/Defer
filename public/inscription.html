@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inscription — Defer</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -19,6 +20,10 @@
       <div class="field"><label for="name" id="name-label">Votre nom</label><input id="name" name="name" autocomplete="name" required></div>
       <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
       <div class="field"><label for="password">Mot de passe (8 caractères minimum)</label><input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required></div>
+      <div class="field" style="display:flex;gap:8px;align-items:flex-start">
+        <input type="checkbox" id="cgv" name="acceptTerms" required style="width:auto;margin-top:4px">
+        <label for="cgv" style="font-weight:400">J'accepte les <a href="/cgv" target="_blank">conditions générales</a> et la <a href="/confidentialite" target="_blank">politique de confidentialité</a>.</label>
+      </div>
       <p class="error" id="error"></p>
       <button class="btn btn-primary btn-block" type="submit">Créer mon compte</button>
       <p class="muted small" style="margin-top: 1em">Déjà inscrit ? <a href="/connexion">Se connecter</a></p>

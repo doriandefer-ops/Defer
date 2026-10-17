@@ -1,0 +1,30 @@
+# Déploiement en un clic sur Render (https://render.com) : New > Blueprint > choisir ce dépôt.
+services:
+  - type: web
+    name: defer
+    runtime: docker
+    plan: starter            # un disque persistant nécessite une offre payante
+    healthCheckPath: /healthz
+    disk:
+      name: defer-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /data/defer.db
+      - key: CLAUDE_MODEL
+        value: claude-opus-5-5
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_FOYER
+        sync: false
+      - key: STRIPE_PRICE_ARTISAN
+        sync: false

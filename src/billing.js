@@ -8,6 +8,9 @@ const PRICE_IDS = { foyer: process.env.STRIPE_PRICE_FOYER, artisan: process.env.
 const PUBLIC_URL = process.env.PUBLIC_URL || 'http://localhost:3000';
 
 const isDemo = () => !stripe;
+// En production, le mode démo est bloqué (sinon n'importe qui obtiendrait une offre payante gratuitement),
+// sauf si ALLOW_DEMO_BILLING=true est défini explicitement.
+const demoAllowed = () => process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_BILLING === 'true';
 
 function setPlan(userId, plan, extra = {}) {
   const accountType = plan === 'artisan' ? 'artisan' : null;
@@ -23,6 +26,7 @@ function setPlan(userId, plan, extra = {}) {
 async function startCheckout(user, plan) {
   if (!PLANS[plan] || plan === 'gratuit') throw new AppError('Offre inconnue.');
   if (isDemo()) {
+    if (!demoAllowed()) throw new AppError('Le paiement en ligne n’est pas encore disponible. Réessayez bientôt.', 503);
     setPlan(user.id, plan);
     return { demo: true };
   }
@@ -53,6 +57,16 @@ async function openPortal(user) {
     return_url: `${PUBLIC_URL}/app.html#abonnement`,
   });
   return { url: portal.url };
+}
+
+// Résilie l'abonnement Stripe en cours (utilisé à la suppression du compte).
+async function cancelSubscription(user) {
+  if (!stripe || !user.stripe_subscription_id) return;
+  try {
+    await stripe.subscriptions.cancel(user.stripe_subscription_id);
+  } catch (err) {
+    if (err.code !== 'resource_missing') throw err;
+  }
 }
 
 // Webhook Stripe : le corps doit être brut (express.raw) pour vérifier la signature.
@@ -92,4 +106,4 @@ function handleWebhook(req, res) {
   res.json({ received: true });
 }
 
-module.exports = { isDemo, startCheckout, openPortal, handleWebhook };
+module.exports = { isDemo, demoAllowed, startCheckout, openPortal, cancelSubscription, handleWebhook };
