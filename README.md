@@ -31,7 +31,7 @@ npm test               # tests de l'API
 1. **Clé Anthropic** : créez une clé sur https://console.anthropic.com (rubrique API Keys) et prévoyez du crédit.
 2. **Hébergement sur Render** (le plus simple) : sur https://render.com, *New → Blueprint*, choisissez ce dépôt.
    Le fichier `render.yaml` configure tout (Docker, disque persistant pour la base, vérification `/healthz`).
-   Renseignez `ANTHROPIC_API_KEY` et `PUBLIC_URL` (l'adresse du site, ex. `https://defer.onrender.com`).
+   Renseignez `ANTHROPIC_API_KEY` et `PUBLIC_URL` (l'adresse du site, ex. `https://mdia.onrender.com`).
    Tout autre hébergeur acceptant Docker convient (`Dockerfile` fourni) : montez un volume sur `/data`.
 3. **Stripe** : créez un compte sur https://stripe.com, récupérez la clé secrète, puis lancez une fois
    `STRIPE_SECRET_KEY=sk_... PUBLIC_URL=https://votre-site npm run stripe:setup`.

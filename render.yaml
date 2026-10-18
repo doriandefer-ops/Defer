@@ -1,12 +1,12 @@
 # Déploiement en un clic sur Render (https://render.com) : New > Blueprint > choisir ce dépôt.
 services:
   - type: web
-    name: defer
+    name: mdia
     runtime: docker
     plan: starter            # un disque persistant nécessite une offre payante
     healthCheckPath: /healthz
     disk:
-      name: defer-data
+      name: mdia-data
       mountPath: /data
       sizeGB: 1
     envVars:
