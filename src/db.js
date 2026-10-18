@@ -98,6 +98,11 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_echeances_user ON echeances(user_id, due_date);
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(user_id, type);

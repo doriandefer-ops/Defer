@@ -222,6 +222,7 @@ if (require.main === module) {
     console.log(`MDIA est lancé sur http://localhost:${port}`);
     if (billing.isDemo() && billing.demoAllowed()) console.log('Paiements : mode démo (STRIPE_SECRET_KEY non défini).');
     if (billing.isDemo() && !billing.demoAllowed()) console.log('Paiements : Stripe non configuré, les abonnements payants sont désactivés.');
+    billing.ensureStripeSetup().catch(() => {});
     if (!process.env.ANTHROPIC_API_KEY) console.log("Assistant IA : ANTHROPIC_API_KEY non défini, l'assistant sera indisponible.");
   });
 }

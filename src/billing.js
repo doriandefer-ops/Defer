@@ -5,7 +5,83 @@ const { AppError } = require('./services');
 
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 const PRICE_IDS = { foyer: process.env.STRIPE_PRICE_FOYER, artisan: process.env.STRIPE_PRICE_ARTISAN };
-const PUBLIC_URL = process.env.PUBLIC_URL || 'http://localhost:3000';
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '');
+const WEBHOOK_URL = `${PUBLIC_URL}/api/billing/webhook`;
+const WEBHOOK_EVENTS = ['checkout.session.completed', 'customer.subscription.updated', 'customer.subscription.deleted'];
+const STRIPE_OFFERS = {
+  foyer: { lookupKey: 'STRIPE_PRICE_FOYER', name: 'MDIA — Foyer', amount: 499 },
+  artisan: { lookupKey: 'STRIPE_PRICE_ARTISAN', name: 'MDIA — Artisan', amount: 2999 },
+};
+
+const getSetting = (key) => db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value;
+const setSetting = (key, value) =>
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+
+// Configuration automatique de Stripe au démarrage : prix mensuels, webhook et portail client sont
+// créés s'ils n'existent pas, pour qu'il suffise de renseigner STRIPE_SECRET_KEY sur l'hébergeur.
+async function findOrCreatePrice({ lookupKey, name, amount }) {
+  const existing = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
+  if (existing.data[0]) return existing.data[0].id;
+  const price = await stripe.prices.create({
+    currency: 'eur',
+    unit_amount: amount,
+    recurring: { interval: 'month' },
+    tax_behavior: 'inclusive',
+    lookup_key: lookupKey,
+    product_data: { name },
+  });
+  console.log(`Stripe : abonnement « ${name} » créé.`);
+  return price.id;
+}
+
+async function ensureWebhook() {
+  if (process.env.STRIPE_WEBHOOK_SECRET) return;
+  if (!PUBLIC_URL.startsWith('https://')) return; // Stripe n'accepte que des adresses publiques en https
+  if (getSetting('stripe_webhook_url') === WEBHOOK_URL && getSetting('stripe_webhook_secret')) return;
+  // Le secret d'un webhook n'est lisible qu'à sa création : on remplace celui qui pointerait déjà ici.
+  const endpoints = await stripe.webhookEndpoints.list({ limit: 100 });
+  for (const ep of endpoints.data.filter((e) => e.url === WEBHOOK_URL)) await stripe.webhookEndpoints.del(ep.id);
+  const endpoint = await stripe.webhookEndpoints.create({ url: WEBHOOK_URL, enabled_events: WEBHOOK_EVENTS });
+  setSetting('stripe_webhook_url', WEBHOOK_URL);
+  setSetting('stripe_webhook_secret', endpoint.secret);
+  console.log(`Stripe : webhook créé vers ${WEBHOOK_URL}.`);
+}
+
+async function ensurePortalConfiguration() {
+  if (getSetting('stripe_portal_configuration')) return;
+  const config = await stripe.billingPortal.configurations.create({
+    business_profile: { headline: 'MDIA — gérer mon abonnement' },
+    features: {
+      subscription_cancel: { enabled: true, mode: 'at_period_end' },
+      payment_method_update: { enabled: true },
+      invoice_history: { enabled: true },
+      customer_update: { enabled: true, allowed_updates: ['email', 'address'] },
+    },
+  });
+  setSetting('stripe_portal_configuration', config.id);
+}
+
+let setupPromise = null;
+function ensureStripeSetup() {
+  if (!stripe) return Promise.resolve();
+  if (!setupPromise) {
+    setupPromise = (async () => {
+      for (const [plan, offer] of Object.entries(STRIPE_OFFERS)) {
+        if (!PRICE_IDS[plan]) PRICE_IDS[plan] = await findOrCreatePrice(offer);
+      }
+      await ensureWebhook();
+      await ensurePortalConfiguration();
+      console.log('Paiements : Stripe configuré.');
+    })().catch((err) => {
+      setupPromise = null; // nouvel essai à la prochaine demande
+      console.error('Stripe : configuration impossible :', err.message);
+      throw err;
+    });
+  }
+  return setupPromise;
+}
+
+const webhookSecret = () => process.env.STRIPE_WEBHOOK_SECRET || getSetting('stripe_webhook_secret');
 
 const isDemo = () => !stripe;
 // En production, le mode démo est bloqué (sinon n'importe qui obtiendrait une offre payante gratuitement),
@@ -30,7 +106,11 @@ async function startCheckout(user, plan) {
     setPlan(user.id, plan);
     return { demo: true };
   }
-  if (!PRICE_IDS[plan]) throw new AppError(`Prix Stripe non configuré pour l'offre ${plan}.`, 500);
+  try {
+    await ensureStripeSetup();
+  } catch {
+    throw new AppError('Le paiement en ligne est momentanément indisponible. Réessayez dans un instant.', 503);
+  }
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: PRICE_IDS[plan], quantity: 1 }],
@@ -52,8 +132,10 @@ async function openPortal(user) {
     return { demo: true };
   }
   if (!user.stripe_customer_id) throw new AppError('Aucun abonnement payant actif.');
+  await ensureStripeSetup().catch(() => {});
   const portal = await stripe.billingPortal.sessions.create({
     customer: user.stripe_customer_id,
+    configuration: getSetting('stripe_portal_configuration'),
     return_url: `${PUBLIC_URL}/app.html#abonnement`,
   });
   return { url: portal.url };
@@ -74,7 +156,7 @@ function handleWebhook(req, res) {
   if (!stripe) return res.status(404).end();
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], webhookSecret());
   } catch (err) {
     return res.status(400).send(`Signature invalide : ${err.message}`);
   }
@@ -106,4 +188,4 @@ function handleWebhook(req, res) {
   res.json({ received: true });
 }
 
-module.exports = { isDemo, demoAllowed, startCheckout, openPortal, cancelSubscription, handleWebhook };
+module.exports = { isDemo, demoAllowed, ensureStripeSetup, startCheckout, openPortal, cancelSubscription, handleWebhook };

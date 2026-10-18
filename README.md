@@ -33,11 +33,10 @@ npm test               # tests de l'API
    Le fichier `render.yaml` configure tout (Docker, disque persistant pour la base, vérification `/healthz`).
    Renseignez `ANTHROPIC_API_KEY` et `PUBLIC_URL` (l'adresse du site, ex. `https://mdia.onrender.com`).
    Tout autre hébergeur acceptant Docker convient (`Dockerfile` fourni) : montez un volume sur `/data`.
-3. **Stripe** : créez un compte sur https://stripe.com, récupérez la clé secrète, puis lancez une fois
-   `STRIPE_SECRET_KEY=sk_... PUBLIC_URL=https://votre-site npm run stripe:setup`.
-   Le script crée les deux abonnements (4,99 € et 29,99 € par mois) et le webhook, et affiche les variables
-   `STRIPE_PRICE_FOYER`, `STRIPE_PRICE_ARTISAN` et `STRIPE_WEBHOOK_SECRET` à ajouter sur l'hébergeur.
-   Activez aussi le portail client Stripe (le script donne le lien).
+3. **Stripe** : créez un compte sur https://stripe.com et ajoutez sa clé secrète dans `STRIPE_SECRET_KEY` sur
+   l'hébergeur. Au démarrage, le site crée tout seul les deux abonnements (4,99 € et 29,99 € par mois, TTC),
+   le webhook vers `PUBLIC_URL` et la configuration du portail client. Rien d'autre à faire.
+   (Le script `npm run stripe:setup` reste disponible pour une configuration manuelle.)
 4. **Pages légales** : complétez les éléments entre crochets dans `public/mentions-legales.html`,
    `public/cgv.html` et `public/confidentialite.html` (raison sociale, SIRET, hébergeur, médiateur…).
 5. **Nom de domaine** (facultatif) : ajoutez-le dans Render puis mettez `PUBLIC_URL` à jour
