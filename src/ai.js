@@ -14,7 +14,7 @@ function getClient() {
   return client;
 }
 
-const SYSTEM_PROMPT = `Tu es Defer, un assistant administratif francophone pour les foyers et les artisans en France.
+const SYSTEM_PROMPT = `Tu es MDIA, un assistant administratif francophone pour les foyers et les artisans en France.
 Ton rôle : faire gagner du temps sur la paperasse. Tu aides à :
 - suivre les échéances (impôts, loyer, assurances, énergie, URSSAF, TVA, abonnements…) ;
 - tenir le budget (dépenses et revenus) ;

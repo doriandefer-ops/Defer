@@ -1,6 +1,6 @@
-# Defer — l'IA qui gère l'administratif des artisans et des foyers
+# MDIA — l'IA qui gère l'administratif des artisans et des foyers
 
-Defer est un site web avec un assistant IA (Claude) qui prend en charge la paperasse :
+MDIA est un site web avec un assistant IA (Claude) qui prend en charge la paperasse :
 échéances, budget, courriers administratifs, et pour les artisans les clients, devis et factures.
 L'utilisateur parle à l'assistant en langage naturel et celui-ci agit directement dans son espace
 (création de devis, ajout d'échéances, enregistrement de dépenses…).

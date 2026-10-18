@@ -1,7 +1,7 @@
 {
   "name": "defer",
   "version": "1.0.0",
-  "description": "Defer — assistant IA pour la gestion administrative des artisans et des foyers",
+  "description": "MDIA — assistant IA pour la gestion administrative des artisans et des foyers",
   "main": "src/server.js",
   "scripts": {
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",

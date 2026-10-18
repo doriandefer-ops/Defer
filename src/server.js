@@ -131,7 +131,7 @@ api.delete('/me', wrap(async (req, res) => {
 api.get('/me/export', (req, res) => {
   const uid = req.user.id;
   const all = (table) => db.prepare(`SELECT * FROM ${table} WHERE user_id = ?`).all(uid);
-  res.set('Content-Disposition', 'attachment; filename="defer-mes-donnees.json"');
+  res.set('Content-Disposition', 'attachment; filename="mdia-mes-donnees.json"');
   res.json({
     compte: auth.publicUser(req.user),
     echeances: all('echeances'),
@@ -219,7 +219,7 @@ app.use((err, _req, res, _next) => {
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
   app.listen(port, () => {
-    console.log(`Defer est lancé sur http://localhost:${port}`);
+    console.log(`MDIA est lancé sur http://localhost:${port}`);
     if (billing.isDemo() && billing.demoAllowed()) console.log('Paiements : mode démo (STRIPE_SECRET_KEY non défini).');
     if (billing.isDemo() && !billing.demoAllowed()) console.log('Paiements : Stripe non configuré, les abonnements payants sont désactivés.');
     if (!process.env.ANTHROPIC_API_KEY) console.log("Assistant IA : ANTHROPIC_API_KEY non défini, l'assistant sera indisponible.");

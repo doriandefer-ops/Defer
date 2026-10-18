@@ -1,4 +1,4 @@
-// Espace client Defer — application monopage sans framework.
+// Espace client MDIA — application monopage sans framework.
 const state = { me: null, plans: [] };
 const view = document.getElementById('view');
 

@@ -1,4 +1,4 @@
-// Crée dans Stripe les produits, les prix mensuels et le webhook nécessaires à Defer.
+// Crée dans Stripe les produits, les prix mensuels et le webhook nécessaires à MDIA.
 // Usage : STRIPE_SECRET_KEY=sk_... PUBLIC_URL=https://votre-site.fr npm run stripe:setup
 const Stripe = require('stripe');
 
@@ -11,8 +11,8 @@ if (!key || !publicUrl || publicUrl.includes('localhost')) {
 const stripe = Stripe(key);
 
 const OFFERS = [
-  { env: 'STRIPE_PRICE_FOYER', name: 'Defer — Foyer', amount: 499 },
-  { env: 'STRIPE_PRICE_ARTISAN', name: 'Defer — Artisan', amount: 2999 },
+  { env: 'STRIPE_PRICE_FOYER', name: 'MDIA — Foyer', amount: 499 },
+  { env: 'STRIPE_PRICE_ARTISAN', name: 'MDIA — Artisan', amount: 2999 },
 ];
 
 (async () => {
