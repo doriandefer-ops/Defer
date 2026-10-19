@@ -61,6 +61,29 @@ async function ensurePortalConfiguration() {
   setSetting('stripe_portal_configuration', config.id);
 }
 
+// Code promo de lancement : 2 mois offerts, réservé aux 20 premiers clients.
+const LAUNCH_PROMO = { code: 'LANCEMENT', months: 2, maxRedemptions: 20 };
+async function ensureLaunchPromo() {
+  if (getSetting('stripe_launch_promo')) return;
+  const existing = await stripe.promotionCodes.list({ code: LAUNCH_PROMO.code, limit: 1 });
+  if (!existing.data[0]) {
+    const coupon = await stripe.coupons.create({
+      name: `Lancement — ${LAUNCH_PROMO.months} mois offerts`,
+      percent_off: 100,
+      duration: 'repeating',
+      duration_in_months: LAUNCH_PROMO.months,
+      max_redemptions: LAUNCH_PROMO.maxRedemptions,
+    });
+    await stripe.promotionCodes.create({
+      promotion: { type: 'coupon', coupon: coupon.id },
+      code: LAUNCH_PROMO.code,
+      max_redemptions: LAUNCH_PROMO.maxRedemptions,
+    });
+    console.log(`Stripe : code promo ${LAUNCH_PROMO.code} créé.`);
+  }
+  setSetting('stripe_launch_promo', LAUNCH_PROMO.code);
+}
+
 let setupPromise = null;
 function ensureStripeSetup() {
   if (!stripe) return Promise.resolve();
@@ -71,6 +94,8 @@ function ensureStripeSetup() {
       }
       await ensureWebhook();
       await ensurePortalConfiguration();
+      // Le code promo est un bonus : son échec ne doit pas bloquer les paiements.
+      await ensureLaunchPromo().catch((err) => console.error('Stripe : code promo non créé :', err.message));
       console.log('Paiements : Stripe configuré.');
     })().catch((err) => {
       setupPromise = null; // nouvel essai à la prochaine demande
