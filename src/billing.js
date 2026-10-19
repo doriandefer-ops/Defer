@@ -120,6 +120,7 @@ async function startCheckout(user, plan) {
     metadata: { plan, userId: String(user.id) },
     subscription_data: { metadata: { plan, userId: String(user.id) } },
     locale: 'fr',
+    allow_promotion_codes: true,
     success_url: `${PUBLIC_URL}/app.html#abonnement?paiement=ok`,
     cancel_url: `${PUBLIC_URL}/app.html#abonnement`,
   });

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /api/
+Disallow: /document
+
+Sitemap: https://mdia.onrender.com/sitemap.xml

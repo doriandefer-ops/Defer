@@ -173,6 +173,7 @@ test('statistiques : visites anonymes et accès réservé à l’administrateur'
   const ua = { 'User-Agent': 'Mozilla/5.0 (Macintosh) Safari/605' };
   await fetch(base.replace('/api', '/'), { headers: { ...ua, Referer: 'https://www.google.com/search' } });
   await fetch(base.replace('/api', '/cgv'), { headers: ua });
+  await fetch(base.replace('/api', '/?utm=flyer'), { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone) Mobile' } });
   await fetch(base.replace('/api', '/'), { headers: { 'User-Agent': 'Googlebot/2.1' } }); // robot ignoré
   await fetch(base.replace('/api', '/app.js'), { headers: ua }); // fichier, pas une page
 
@@ -185,9 +186,9 @@ test('statistiques : visites anonymes et accès réservé à l’administrateur'
   await admin('/auth/register', { method: 'POST', body: { email: 'admin@test.fr', password: 'motdepasse', name: 'Admin' } });
   assert.equal((await admin('/me')).body.user.isAdmin, true);
   const s = (await admin('/admin/stats')).body;
-  assert.equal(s.visits.today, 1); // même visiteur sur 2 pages = 1 visiteur
-  assert.equal(s.visits.views30, 2);
-  assert.deepEqual(s.visits.topReferrers, [{ referrer: 'google.com', visitors: 1 }]);
+  assert.equal(s.visits.today, 2); // même visiteur sur 2 pages = 1 visiteur, + 1 via le flyer
+  assert.equal(s.visits.views30, 3);
+  assert.deepEqual(s.visits.topReferrers.map((r) => r.referrer).sort(), ['Flyer (QR code)', 'google.com']);
   assert.equal(s.daily.length, 30);
   assert.ok(s.users.total >= 2);
   assert.ok(s.users.recent.some((u) => u.email === 'curieux@test.fr'));

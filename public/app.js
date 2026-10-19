@@ -761,7 +761,11 @@ async function renderSettings() {
           <div class="field"><label>Téléphone</label><input name="phone" value="${esc(u.phone || '')}"></div>
           <div class="field"><label>TVA par défaut (%)</label><input name="vatRate" type="number" step="0.1" min="0" max="100" value="${u.vatRate}"></div>
         </div>
-        <div class="field"><label>Adresse</label><textarea name="address" rows="2">${esc(u.address || '')}</textarea></div>` : ''}
+        <div class="field"><label>Adresse</label><textarea name="address" rows="2">${esc(u.address || '')}</textarea></div>
+        <div class="field" style="display:flex;gap:8px;align-items:flex-start">
+          <input type="checkbox" id="branding" ${u.showBranding ? 'checked' : ''} style="width:auto;margin-top:4px">
+          <label for="branding" style="font-weight:400">Afficher la mention discrète « Créé avec MDIA » en bas de mes devis et factures</label>
+        </div>` : ''}
       <button class="btn btn-primary" type="submit">Enregistrer</button>
     </form>
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -776,7 +780,10 @@ async function renderSettings() {
   document.getElementById('form').addEventListener('submit', (e) =>
     attempt(async () => {
       e.preventDefault();
-      await api('/me', { method: 'PATCH', body: Object.fromEntries(new FormData(e.target)) });
+      const body = Object.fromEntries(new FormData(e.target));
+      const branding = document.getElementById('branding');
+      if (branding) body.showBranding = branding.checked;
+      await api('/me', { method: 'PATCH', body });
       await refreshMe();
       toast('Paramètres enregistrés');
     }),

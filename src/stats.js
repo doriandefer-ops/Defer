@@ -67,6 +67,13 @@ function referrerHost(req) {
   }
 }
 
+// Liens marqués ?utm=… (flyer, mention sur les devis…) : comptés comme source à part entière.
+const CAMPAIGNS = { flyer: 'Flyer (QR code)', document: 'Mention sur un devis/facture' };
+function campaign(req) {
+  const utm = String(req.query.utm || '').toLowerCase();
+  return CAMPAIGNS[utm] || (/^[a-z0-9_-]{1,30}$/.test(utm) ? `Lien « ${utm} »` : null);
+}
+
 // Middleware : enregistre une page vue pour les pages publiques (pas l'espace client, ni les robots, ni l'administrateur).
 function trackPageView(req, _res, next) {
   const path = req.method === 'GET' ? TRACKED_PATHS.get(req.path) : null;
@@ -77,7 +84,7 @@ function trackPageView(req, _res, next) {
       today(),
       path,
       visitor,
-      referrerHost(req),
+      campaign(req) || referrerHost(req),
     );
   }
   next();

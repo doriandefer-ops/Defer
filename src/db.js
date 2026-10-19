@@ -109,4 +109,10 @@ CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(user_id, type);
 CREATE INDEX IF NOT EXISTS idx_chat_user ON chat_messages(user_id, id);
 `);
 
+// Migrations légères (colonnes ajoutées après la création de la table)
+const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!userColumns.includes('show_branding')) {
+  db.exec('ALTER TABLE users ADD COLUMN show_branding INTEGER NOT NULL DEFAULT 1');
+}
+
 module.exports = db;

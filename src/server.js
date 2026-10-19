@@ -107,6 +107,7 @@ api.patch('/me', (req, res) => {
     address: clip(b.address, 500),
     phone: clip(b.phone, 30),
     vat_rate: b.vatRate === undefined ? undefined : Number(b.vatRate),
+    show_branding: b.showBranding === undefined ? undefined : b.showBranding ? 1 : 0,
   };
   if (fields.vat_rate !== undefined && !(fields.vat_rate >= 0 && fields.vat_rate <= 100)) {
     throw new svc.AppError('Taux de TVA invalide.');

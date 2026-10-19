@@ -99,6 +99,7 @@ function publicUser(u) {
     address: u.address,
     phone: u.phone,
     vatRate: u.vat_rate,
+    showBranding: u.show_branding !== 0,
     isAdmin: isAdmin(u),
   };
 }
