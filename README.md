@@ -55,6 +55,13 @@ npm test               # tests de l'API
 Dans *Paramètres*, chaque utilisateur peut télécharger toutes ses données (JSON) et supprimer son compte
 (l'abonnement Stripe est alors résilié). L'inscription demande l'acceptation des CGV et de la politique de confidentialité.
 
+## Statistiques
+
+Les comptes dont l'email figure dans `ADMIN_EMAILS` voient une page **Statistiques** dans leur espace :
+visiteurs par jour, inscriptions, abonnés par offre, revenu mensuel estimé, utilisation de l'assistant,
+pages les plus vues et sites d'origine. Les visites sont comptées sans cookie (empreinte anonyme renouvelée
+chaque jour, IP jamais stockée, conservation 13 mois), conformément à l'exemption de consentement de la CNIL.
+
 ## Assistant IA
 
 `src/ai.js` utilise le SDK Anthropic avec le modèle `claude-opus-5-5` (modifiable via `CLAUDE_MODEL`).

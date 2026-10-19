@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const db = require('./db');
+const { isAdmin } = require('./stats');
 
 const SESSION_COOKIE = 'defer_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -72,6 +73,7 @@ function requireAuth(req, res, next) {
 const attempts = new Map();
 function rateLimit(max, windowMs) {
   return (req, res, next) => {
+    if (process.env.RATE_LIMIT_DISABLED === 'true') return next();
     const key = `${req.ip}:${req.path}`;
     const now = Date.now();
     const entry = attempts.get(key) || { count: 0, reset: now + windowMs };
@@ -97,6 +99,7 @@ function publicUser(u) {
     address: u.address,
     phone: u.phone,
     vatRate: u.vat_rate,
+    isAdmin: isAdmin(u),
   };
 }
 

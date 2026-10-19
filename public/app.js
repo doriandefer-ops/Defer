@@ -102,6 +102,7 @@ const ROUTES = [
   { id: 'clients', label: 'Clients', icon: '👥', render: renderClients, feature: 'clients', artisanOnly: true },
   { id: 'documents', label: 'Devis & factures', icon: '🧾', render: renderDocuments, feature: 'documents', artisanOnly: true },
   { id: 'abonnement', label: 'Abonnement', icon: '⭐', render: renderBilling },
+  { id: 'statistiques', label: 'Statistiques', icon: '📊', render: renderStats, adminOnly: true },
   { id: 'parametres', label: 'Paramètres', icon: '⚙️', render: renderSettings },
 ];
 
@@ -113,7 +114,7 @@ function currentRoute() {
 function renderNav() {
   const { route } = currentRoute();
   const isArtisan = state.me.user.accountType === 'artisan';
-  document.getElementById('nav').innerHTML = ROUTES.filter((r) => !r.artisanOnly || isArtisan || has(r.feature))
+  document.getElementById('nav').innerHTML = ROUTES.filter((r) => (!r.artisanOnly || isArtisan || has(r.feature)) && (!r.adminOnly || state.me.user.isAdmin))
     .map((r) => {
       const locked = r.feature && !has(r.feature);
       return `<a class="nav-item ${r === route ? 'active' : ''} ${locked ? 'locked' : ''}" href="#${r.id}">
@@ -622,6 +623,124 @@ async function renderBilling(query) {
       }),
     ),
   );
+}
+
+// ---------- Statistiques (administrateur) ----------
+const frShortDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const PLAN_NAMES = { gratuit: 'Gratuit', foyer: 'Foyer', artisan: 'Artisan' };
+
+// Histogramme à une série (barres fines, extrémités arrondies, infobulle au survol, tableau de données).
+function barChart(id, title, rows, key, unit) {
+  const W = 720, H = 200, PAD_L = 32, PAD_B = 22, PAD_T = 10;
+  const max = Math.max(1, ...rows.map((r) => r[key]));
+  const step = max <= 4 ? 1 : Math.ceil(max / 4);
+  const top = Math.ceil(max / step) * step;
+  const plotW = W - PAD_L, plotH = H - PAD_B - PAD_T;
+  const slot = plotW / rows.length;
+  const barW = Math.min(16, slot - 4);
+  const y = (v) => PAD_T + plotH - (v / top) * plotH;
+  const ticks = [];
+  for (let v = 0; v <= top; v += step) ticks.push(v);
+  const bars = rows.map((r, i) => {
+    const x = PAD_L + i * slot + (slot - barW) / 2;
+    const h = (r[key] / top) * plotH;
+    if (!h) return '';
+    const rad = Math.min(4, h, barW / 2);
+    const yb = PAD_T + plotH;
+    return `<path class="bar" d="M${x},${yb} V${yb - h + rad} Q${x},${yb - h} ${x + rad},${yb - h} H${x + barW - rad} Q${x + barW},${yb - h} ${x + barW},${yb - h + rad} V${yb} Z"/>`;
+  }).join('');
+  const hits = rows.map((r, i) =>
+    `<rect class="hit" x="${PAD_L + i * slot}" y="${PAD_T}" width="${slot}" height="${plotH}" data-i="${i}"/>`).join('');
+  const grid = ticks.map((v) => `<line class="grid" x1="${PAD_L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
+    <text class="axis" x="${PAD_L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join('');
+  const xLabels = rows.map((r, i) => ((rows.length - 1 - i) % 7 === 0)
+    ? `<text class="axis" x="${PAD_L + i * slot + slot / 2}" y="${H - 6}" text-anchor="middle">${frShortDate(r.day)}</text>` : '').join('');
+  const total = rows.reduce((t, r) => t + r[key], 0);
+  return `<div class="card chart-card" id="${id}">
+    <div class="chart-head"><h2>${title}</h2><span class="muted small">${total} sur 30 jours</span></div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)} : ${total} sur 30 jours">${grid}${bars}${xLabels}${hits}</svg>
+      <div class="chart-tip hidden"></div>
+    </div>
+    <details class="small"><summary class="muted">Voir les données</summary>
+      <div class="table-wrap"><table><thead><tr><th>Jour</th><th class="num">${unit}</th></tr></thead><tbody>
+      ${rows.slice().reverse().map((r) => `<tr><td>${frDate(r.day)}</td><td class="num">${r[key]}</td></tr>`).join('')}
+      </tbody></table></div>
+    </details>
+  </div>`;
+}
+
+function wireChart(id, rows, key, unit) {
+  const card = document.getElementById(id);
+  const tip = card.querySelector('.chart-tip');
+  const svg = card.querySelector('svg');
+  const show = (rect) => {
+    const r = rows[Number(rect.dataset.i)];
+    tip.innerHTML = `<strong>${r[key]}</strong> ${unit}<br><span class="muted">${frDate(r.day)}</span>`;
+    tip.classList.remove('hidden');
+    const box = rect.getBoundingClientRect(), wrap = svg.parentElement.getBoundingClientRect();
+    const left = Math.min(Math.max(box.left - wrap.left + box.width / 2, 50), wrap.width - 50);
+    tip.style.left = `${left}px`;
+  };
+  card.querySelectorAll('.hit').forEach((rect) => {
+    rect.addEventListener('mouseenter', () => show(rect));
+    rect.addEventListener('click', () => show(rect));
+  });
+  svg.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+}
+
+async function renderStats() {
+  const s = await api('/admin/stats');
+  const tiles = [
+    ['Visiteurs aujourd’hui', s.visits.today],
+    ['Visiteurs sur 7 jours', s.visits.last7],
+    ['Visiteurs sur 30 jours', s.visits.last30],
+    ['Inscrits au total', s.users.total],
+    ['Abonnés payants', s.revenue.payingUsers],
+    ['Revenu mensuel estimé', eur(s.revenue.mrr)],
+  ];
+  const listTable = (rows, cols) => rows.length
+    ? `<table><tbody>${rows.map((r) => `<tr>${cols.map((c, i) => `<td class="${i ? 'num' : ''}">${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+    : '<p class="empty">Pas encore de données.</p>';
+  view.innerHTML = `
+    <div class="main-header"><h1>Statistiques</h1>
+      <span class="muted small">Mis à jour ${new Date(s.generatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · <a href="#statistiques" id="refresh">Actualiser</a></span></div>
+    <div class="stats">${tiles.map(([l, v]) => `<div class="card stat"><div class="label">${l}</div><div class="value">${esc(v)}</div></div>`).join('')}</div>
+    <div class="stack">
+      ${barChart('chart-visits', 'Visiteurs par jour', s.daily, 'visitors', 'visiteurs')}
+      ${barChart('chart-signups', 'Inscriptions par jour', s.daily, 'signups', 'inscriptions')}
+      <div class="two-col">
+        <div class="card"><h2>Inscrits par offre</h2>
+          <table><tbody>${Object.entries(s.users.byPlan).map(([p, n]) => `<tr><td>${PLAN_NAMES[p] || esc(p)}</td><td class="num">${n}</td></tr>`).join('')}
+          <tr><td class="muted">Profils artisan / foyer</td><td class="num muted">${s.users.byType.artisan} / ${s.users.byType.foyer}</td></tr>
+          <tr><td class="muted">Taux d’inscription (30 j)</td><td class="num muted">${s.users.conversion == null ? '—' : `${s.users.conversion.toLocaleString('fr-FR')} %`}</td></tr>
+          </tbody></table></div>
+        <div class="card"><h2>Utilisation</h2>
+          <table><tbody>
+            <tr><td>Messages à l’assistant IA (ce mois)</td><td class="num">${s.usage.aiMessagesThisMonth}</td></tr>
+            <tr><td>Utilisateurs de l’assistant (ce mois)</td><td class="num">${s.usage.aiActiveUsersThisMonth}</td></tr>
+            <tr><td>Devis créés</td><td class="num">${s.usage.quotes}</td></tr>
+            <tr><td>Factures créées</td><td class="num">${s.usage.invoices}</td></tr>
+            <tr><td>Échéances suivies</td><td class="num">${s.usage.echeances}</td></tr>
+            <tr><td>Opérations de budget</td><td class="num">${s.usage.transactions}</td></tr>
+          </tbody></table></div>
+      </div>
+      <div class="two-col">
+        <div class="card"><h2>Pages les plus vues (30 j)</h2>${listTable(s.visits.topPages, ['page', 'views'])}</div>
+        <div class="card"><h2>D’où viennent les visiteurs (30 j)</h2>${listTable(s.visits.topReferrers, ['referrer', 'visitors'])}
+          <p class="muted small">Les visites directes (adresse tapée, favoris, applications) n’apparaissent pas ici.</p></div>
+      </div>
+      <div class="card"><h2>Derniers inscrits</h2>
+        ${s.users.recent.length ? `<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Email</th><th>Profil</th><th>Offre</th><th>Inscription</th></tr></thead><tbody>
+        ${s.users.recent.map((u) => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.accountType === 'artisan' ? 'Artisan' : 'Foyer'}</td>
+          <td>${PLAN_NAMES[u.plan] || esc(u.plan)}</td><td>${frDate(u.createdAt.slice(0, 10))}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="empty">Aucun inscrit pour le moment.</p>'}
+      </div>
+      <p class="muted small">Visites comptées sans cookie : un visiteur est compté une fois par jour, ses visites ne sont pas reliées d’un jour à l’autre. Vos propres visites, connecté à ce compte, ne sont pas comptées.</p>
+    </div>`;
+  wireChart('chart-visits', s.daily, 'visitors', 'visiteurs');
+  wireChart('chart-signups', s.daily, 'signups', 'inscriptions');
+  document.getElementById('refresh').addEventListener('click', (e) => { e.preventDefault(); router(); });
 }
 
 // ---------- Paramètres ----------

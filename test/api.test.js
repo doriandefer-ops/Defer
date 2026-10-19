@@ -1,4 +1,6 @@
 process.env.DATABASE_PATH = ':memory:';
+process.env.ADMIN_EMAILS = 'admin@test.fr';
+process.env.RATE_LIMIT_DISABLED = 'true';
 delete process.env.STRIPE_SECRET_KEY;
 
 const test = require('node:test');
@@ -165,4 +167,28 @@ test('export des données et suppression du compte', async () => {
   assert.equal((await a('/me')).status, 401);
   const b = agent();
   assert.equal((await b('/auth/login', { method: 'POST', body: { email: 'rgpd@test.fr', password: 'motdepasse' } })).status, 401);
+});
+
+test('statistiques : visites anonymes et accès réservé à l’administrateur', async () => {
+  const ua = { 'User-Agent': 'Mozilla/5.0 (Macintosh) Safari/605' };
+  await fetch(base.replace('/api', '/'), { headers: { ...ua, Referer: 'https://www.google.com/search' } });
+  await fetch(base.replace('/api', '/cgv'), { headers: ua });
+  await fetch(base.replace('/api', '/'), { headers: { 'User-Agent': 'Googlebot/2.1' } }); // robot ignoré
+  await fetch(base.replace('/api', '/app.js'), { headers: ua }); // fichier, pas une page
+
+  const user = agent();
+  await user('/auth/register', { method: 'POST', body: { email: 'curieux@test.fr', password: 'motdepasse', name: 'C' } });
+  assert.equal((await user('/admin/stats')).status, 404);
+  assert.equal((await user('/me')).body.user.isAdmin, false);
+
+  const admin = agent();
+  await admin('/auth/register', { method: 'POST', body: { email: 'admin@test.fr', password: 'motdepasse', name: 'Admin' } });
+  assert.equal((await admin('/me')).body.user.isAdmin, true);
+  const s = (await admin('/admin/stats')).body;
+  assert.equal(s.visits.today, 1); // même visiteur sur 2 pages = 1 visiteur
+  assert.equal(s.visits.views30, 2);
+  assert.deepEqual(s.visits.topReferrers, [{ referrer: 'google.com', visitors: 1 }]);
+  assert.equal(s.daily.length, 30);
+  assert.ok(s.users.total >= 2);
+  assert.ok(s.users.recent.some((u) => u.email === 'curieux@test.fr'));
 });

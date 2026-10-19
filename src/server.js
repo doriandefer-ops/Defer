@@ -5,6 +5,7 @@ const auth = require('./auth');
 const svc = require('./services');
 const ai = require('./ai');
 const billing = require('./billing');
+const stats = require('./stats');
 const { publicPlans, getPlan } = require('./plans');
 
 const app = express();
@@ -32,6 +33,7 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), bill
 
 app.use(express.json({ limit: '200kb' }));
 app.use(auth.loadUser);
+app.use(stats.trackPageView);
 
 // Les requêtes qui modifient des données doivent être en JSON (protection CSRF basique avec SameSite=Lax).
 app.use('/api', (req, res, next) => {
@@ -203,6 +205,12 @@ api.delete('/documents/:id', (req, res) => {
 api.post('/billing/checkout', wrap(async (req, res) => res.json(await billing.startCheckout(req.user, req.body.plan))));
 api.post('/billing/portal', wrap(async (req, res) => res.json(await billing.openPortal(req.user))));
 
+// ---------- Administration ----------
+api.get('/admin/stats', (req, res) => {
+  if (!stats.isAdmin(req.user)) return res.status(404).json({ error: 'Route inconnue.' });
+  res.json(stats.adminStats());
+});
+
 app.use('/api', api);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 
@@ -223,6 +231,7 @@ if (require.main === module) {
     if (billing.isDemo() && billing.demoAllowed()) console.log('Paiements : mode démo (STRIPE_SECRET_KEY non défini).');
     if (billing.isDemo() && !billing.demoAllowed()) console.log('Paiements : Stripe non configuré, les abonnements payants sont désactivés.');
     billing.ensureStripeSetup().catch(() => {});
+    stats.purgeOldViews();
     if (!process.env.ANTHROPIC_API_KEY) console.log("Assistant IA : ANTHROPIC_API_KEY non défini, l'assistant sera indisponible.");
   });
 }

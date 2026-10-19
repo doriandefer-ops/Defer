@@ -12,6 +12,8 @@
   --warn-soft: #f8e9dc;
   --danger: #a33a3a;
   --ok: #2f7a4a;
+  --chart-1: #2a78d6;
+  --grid: #ebeae4;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -32,6 +34,8 @@
     --warn: #e2a06b;
     --warn-soft: #3a2a1d;
     --danger: #e08585;
+    --chart-1: #3987e5;
+    --grid: #2c2e2c;
     --ok: #7cc79a;
     color-scheme: dark;
   }
@@ -186,3 +190,21 @@ td.actions { text-align: right; white-space: nowrap; }
 .legal-page { max-width: 760px; padding-top: 40px; padding-bottom: 56px; }
 .legal-page h2 { font-size: 1.15rem; margin-top: 1.6em; }
 .site-footer a { color: var(--muted); }
+
+/* Graphiques de la page Statistiques */
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.chart-wrap { position: relative; }
+.chart-wrap svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart-wrap .bar { fill: var(--chart-1); }
+.chart-wrap .grid { stroke: var(--grid); stroke-width: 1; }
+.chart-wrap .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-wrap .hit { fill: transparent; cursor: pointer; }
+.chart-wrap .hit:hover { fill: color-mix(in srgb, var(--chart-1) 8%, transparent); }
+.chart-tip { position: absolute; top: 0; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; pointer-events: none; white-space: nowrap; }
+.chart-card details { margin-top: 8px; }
+@media (max-width: 600px) {
+  .chart-wrap .axis { font-size: 22px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat .value { font-size: 1.3rem; }
+}
