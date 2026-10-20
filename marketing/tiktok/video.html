@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<!-- Moteur d'animation des vidéos TikTok : rendu image par image via renderAt(t), sans animation CSS,
+     pour que l'export (scripts/make-tiktok.js) soit parfaitement fluide et reproductible. -->
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; }
+  body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #fff;
+    background: radial-gradient(120% 80% at 50% 0%, #3b7563 0%, #1f4a3e 45%, #12302a 100%); }
+  .caption { position: absolute; left: 70px; right: 140px; top: 170px; font-weight: 800; font-size: 76px; line-height: 1.12;
+    letter-spacing: -1px; text-shadow: 0 4px 24px rgba(0,0,0,.35); }
+  .caption .hl { background: #f6d55c; color: #12302a; padding: 0 14px; border-radius: 14px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .phone { position: absolute; left: 90px; right: 160px; top: 520px; height: 920px; background: #f7f7f4; border-radius: 56px;
+    box-shadow: 0 40px 80px rgba(0,0,0,.35); overflow: hidden; color: #1d1d1b; }
+  .bar { height: 120px; display: flex; align-items: center; gap: 20px; padding: 0 40px; border-bottom: 2px solid #e2e0d8; background: #fff; }
+  .logo-mark { width: 64px; height: 64px; border-radius: 18px; background: #2f5d50; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 36px; }
+  .bar b { font-size: 40px; }
+  .bar span { font-size: 26px; color: #66655f; }
+  .msgs { position: absolute; left: 0; right: 0; top: 120px; bottom: 0; padding: 36px 34px; display: flex; flex-direction: column; gap: 22px; justify-content: flex-end; }
+  .msg { max-width: 86%; padding: 24px 30px; border-radius: 34px; font-size: 36px; line-height: 1.3; }
+  .msg.user { background: #2f5d50; color: #fff; align-self: flex-end; border-bottom-right-radius: 10px; }
+  .msg.bot { background: #fff; border: 2px solid #e2e0d8; align-self: flex-start; border-bottom-left-radius: 10px; }
+  .msg .cursor { display: inline-block; width: 4px; height: 40px; background: currentColor; vertical-align: -6px; margin-left: 2px; }
+  .dots { display: inline-flex; gap: 10px; } .dots i { width: 16px; height: 16px; border-radius: 50%; background: #9a998f; display: block; }
+  .doc { background: #fff; border: 2px solid #e2e0d8; border-radius: 28px; padding: 30px 34px; font-size: 27px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+  .doc h3 { font-size: 40px; letter-spacing: 1px; margin-bottom: 4px; }
+  .doc .muted { color: #66655f; }
+  .doc table { width: 100%; border-collapse: collapse; margin: 16px 0 10px; }
+  .doc td { padding: 9px 0; border-bottom: 2px solid #efeee8; }
+  .doc td.n { text-align: right; white-space: nowrap; }
+  .doc .total { display: flex; justify-content: space-between; font-weight: 800; font-size: 34px; margin-top: 8px; }
+  .doc p { line-height: 1.4; margin-top: 10px; }
+  .badge { display: inline-block; background: #e3ece8; color: #2f5d50; font-weight: 700; border-radius: 999px; padding: 6px 18px; font-size: 24px; }
+  .timer { position: absolute; left: 0; right: 80px; top: 640px; text-align: center; }
+  .timer .label { font-size: 56px; font-weight: 700; opacity: .9; }
+  .timer .big { font-size: 230px; font-weight: 900; letter-spacing: -6px; font-variant-numeric: tabular-nums; }
+  .end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding: 0 90px 260px 90px; text-align: center;
+    background: radial-gradient(120% 80% at 50% 0%, #3b7563 0%, #1f4a3e 45%, #12302a 100%); }
+  .end .brand { display: flex; align-items: center; gap: 30px; font-size: 120px; font-weight: 900; }
+  .end .brand .logo-mark { width: 150px; height: 150px; border-radius: 40px; font-size: 90px; background: #fff; color: #2f5d50; }
+  .end .tag { font-size: 58px; font-weight: 700; line-height: 1.2; }
+  .end .url { font-size: 64px; font-weight: 800; background: #fff; color: #1f4a3e; padding: 22px 44px; border-radius: 999px; }
+  .end .promo { font-size: 44px; background: #f6d55c; color: #12302a; font-weight: 800; padding: 16px 34px; border-radius: 22px; }
+  .end .small { font-size: 36px; opacity: .85; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="caption" id="caption"></div>
+  <div class="phone" id="phone">
+    <div class="bar"><div class="logo-mark">M</div><div><b>MDIA</b><br><span>Assistant administratif</span></div></div>
+    <div class="msgs" id="msgs"></div>
+  </div>
+  <div class="timer hidden" id="timer"><div class="label" id="timerLabel"></div><div class="big" id="timerBig"></div></div>
+  <div class="end hidden" id="end"></div>
+<script>
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+let SCRIPT = null;
+
+function captionHtml(text) {
+  // **mot** = surligné jaune
+  return esc(text).replace(/\*\*(.+?)\*\*/g, '<span class="hl">$1</span>');
+}
+
+function renderAt(t) {
+  const s = SCRIPT;
+  // Légende du haut : apparition avec un léger zoom
+  const cap = s.captions.find((c) => t >= c.t0 && t < c.t1);
+  const capEl = document.getElementById('caption');
+  if (cap) {
+    const k = ease((t - cap.t0) / 0.25);
+    capEl.innerHTML = captionHtml(cap.text);
+    capEl.style.opacity = k;
+    capEl.style.transform = `scale(${0.92 + 0.08 * k})`;
+    capEl.style.transformOrigin = 'left top';
+  } else capEl.innerHTML = '';
+
+  // Téléphone et conversation
+  const phone = document.getElementById('phone');
+  const showPhone = s.phone && t >= s.phone.t0 && t < s.phone.t1;
+  phone.classList.toggle('hidden', !showPhone);
+  if (showPhone) {
+    const k = ease((t - s.phone.t0) / 0.4);
+    phone.style.transform = `translateY(${(1 - k) * 260}px)`;
+    phone.style.opacity = k;
+    const html = [];
+    for (const m of s.messages) {
+      if (t < m.t) continue;
+      if (m.role === 'user') {
+        const n = Math.floor(m.text.length * clamp((t - m.t) / (m.dur || 2.5)));
+        const done = n >= m.text.length;
+        html.push(`<div class="msg user">${esc(m.text.slice(0, n))}${done ? '' : '<span class="cursor"></span>'}</div>`);
+      } else if (m.role === 'bot') {
+        if (t < m.t + 0.7) {
+          const phase = Math.floor((t - m.t) * 6) % 3;
+          html.push(`<div class="msg bot"><span class="dots">${[0, 1, 2].map((i) => `<i style="opacity:${i === phase ? 1 : 0.35}"></i>`).join('')}</span></div>`);
+        } else {
+          const k2 = ease((t - m.t - 0.7) / 0.25);
+          html.push(`<div class="msg bot" style="opacity:${k2};transform:translateY(${(1 - k2) * 20}px)">${m.html}</div>`);
+        }
+      } else if (m.role === 'doc') {
+        const k3 = ease((t - m.t) / 0.45);
+        html.push(`<div class="doc" style="opacity:${k3};transform:translateY(${(1 - k3) * 60}px) scale(${0.96 + 0.04 * k3})">${m.html}</div>`);
+      }
+    }
+    document.getElementById('msgs').innerHTML = html.join('');
+  }
+
+  // Compteur (vidéo « combien de temps »)
+  const timer = document.getElementById('timer');
+  const tm = (s.timers || []).find((x) => t >= x.t0 && t < x.t1);
+  timer.classList.toggle('hidden', !tm);
+  if (tm) {
+    const p = clamp((t - tm.t0) / (tm.countDur || 1.5));
+    const v = Math.round(tm.from + (tm.to - tm.from) * ease(p));
+    document.getElementById('timerLabel').textContent = tm.label;
+    document.getElementById('timerBig').textContent = tm.format.replace('{v}', v);
+    timer.style.color = tm.color || '#fff';
+  }
+
+  // Écran final
+  const end = document.getElementById('end');
+  const showEnd = t >= s.end.t0;
+  end.classList.toggle('hidden', !showEnd);
+  if (showEnd) {
+    const k = ease((t - s.end.t0) / 0.35);
+    end.style.opacity = k;
+    end.innerHTML = `
+      <div class="brand" style="transform:scale(${0.85 + 0.15 * k})"><span class="logo-mark">M</span>MDIA</div>
+      <div class="tag">${esc(s.end.tagline)}</div>
+      <div class="url">mdia.onrender.com</div>
+      ${s.end.promo ? `<div class="promo">${esc(s.end.promo)}</div>` : ''}
+      <div class="small">${esc(s.end.small || 'Essai gratuit · sans carte bancaire')}</div>`;
+  }
+}
+
+window.setup = (script) => { SCRIPT = script; renderAt(0); };
+</script>
+</body>
+</html>
