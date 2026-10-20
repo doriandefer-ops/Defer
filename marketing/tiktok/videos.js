@@ -39,9 +39,9 @@ module.exports = [
     // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
     voice: [
       { t: 0.3, text: "Il est vingt-deux heures, et t'as encore six devis à faire ?" },
-      { t: 3.3, text: "Avec èm dé i a, tu écris juste ce que tu veux." },
+      { t: 3.8, text: "Avec èm dé i a, tu écris juste ce que tu veux." },
       { t: 7.0, text: "Et ton devis est prêt. Té vé a comprise. En trente secondes." },
-      { t: 14.3, text: "Essai gratuit. Le lien est dans la bio." },
+      { t: 14.3, text: "Essai gratuit, lien en bio." },
     ],
     duration: 17,
     captions: [
@@ -68,7 +68,7 @@ module.exports = [
       { t: 0.3, text: "Le client qui paie toujours pas sa facture ?" },
       { t: 3.2, text: "Demande à èm dé i a d'écrire la relance." },
       { t: 6.8, text: "Polie, ferme, et prête à envoyer." },
-      { t: 14.3, text: "Fini de courir après les impayés. Lien en bio." },
+      { t: 14.3, text: "Fini les impayés. Lien en bio." },
     ],
     duration: 17,
     captions: [
@@ -94,7 +94,7 @@ module.exports = [
       { t: 0.3, text: "Ta cliente a accepté le devis ?" },
       { t: 3.2, text: "Une phrase, et èm dé i a le transforme en facture." },
       { t: 9.2, text: "Sans rien retaper." },
-      { t: 12.8, text: "Essaie gratuitement. Lien en bio." },
+      { t: 12.6, text: "Essaie gratuitement. Lien en bio." },
     ],
     duration: 15,
     captions: [
@@ -119,9 +119,9 @@ module.exports = [
     // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
     voice: [
       { t: 0.3, text: "Résilier sa box internet sans y passer une heure ?" },
-      { t: 3.2, text: "Demande simplement la lettre à èm dé i a." },
+      { t: 3.8, text: "Demande simplement la lettre à èm dé i a." },
       { t: 10.1, text: "Elle est prête. Tu n'as plus qu'à signer." },
-      { t: 13.1, text: "Tes papiers, enfin simples. Lien en bio." },
+      { t: 13.1, text: "Tes papiers, enfin simples." },
     ],
     duration: 16,
     captions: [

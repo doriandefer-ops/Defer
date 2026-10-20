@@ -1,5 +1,8 @@
-// Ajoute la voix off (synthèse vocale espeak-ng + MBROLA fr1) et la musique originale aux vidéos de out/.
-// Produit out/<nom>-voix-musique.mp4. Prérequis : espeak-ng, mbrola, mbrola-fr1, python3 + numpy, ffmpeg.
+// Ajoute la voix off et la musique originale aux vidéos de out/. Produit out/<nom>-voix-musique.mp4.
+// Voix : Piper (voix neuronale réaliste) si PIPER_BIN et PIPER_MODEL sont définis, sinon espeak-ng + MBROLA fr1.
+//   PIPER_BIN=/chemin/piper PIPER_MODEL=/chemin/fr_FR-tom-medium.onnx node marketing/tiktok/add-audio.js
+// Voix Piper : https://huggingface.co/rhasspy/piper-voices (fr_FR-tom-medium, fr_FR-siwis-medium…)
+// Prérequis : python3 + numpy, ffmpeg (et espeak-ng + mbrola-fr1 sans Piper).
 // Usage : node marketing/tiktok/add-audio.js [nom-de-video]
 const fs = require('node:fs');
 const path = require('node:path');
@@ -9,6 +12,18 @@ const videos = require('./videos');
 const OUT = path.join(__dirname, 'out');
 const VOICE = process.env.TTS_VOICE || 'mb-fr1';
 const SPEED = process.env.TTS_SPEED || '160';
+const PIPER = process.env.PIPER_BIN && process.env.PIPER_MODEL
+  ? { bin: process.env.PIPER_BIN, model: process.env.PIPER_MODEL, lengthScale: process.env.PIPER_LENGTH_SCALE || '0.88' }
+  : null;
+
+function speak(text, wav) {
+  if (PIPER) {
+    execFileSync(PIPER.bin, ['-m', PIPER.model, '-f', wav, '--length-scale', PIPER.lengthScale, '--sentence-silence', '0.15'],
+      { input: text, stdio: ['pipe', 'ignore', 'ignore'] });
+  } else {
+    execFileSync('espeak-ng', ['-v', VOICE, '-s', SPEED, '-a', '50', '-w', wav, text]);
+  }
+}
 
 const duration = (file) =>
   Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString());
@@ -23,7 +38,7 @@ for (const v of videos.filter((x) => !only || x.file === only)) {
   const filters = [];
   v.voice.forEach((seg, i) => {
     const wav = path.join(tmp, `v${i}.wav`);
-    execFileSync('espeak-ng', ['-v', VOICE, '-s', SPEED, '-a', '50', '-w', wav, seg.text]);
+    speak(seg.text, wav);
     const d = duration(wav);
     const next = v.voice[i + 1]?.t ?? v.duration;
     if (seg.t + d > next) console.warn(`⚠ ${v.file} : la phrase ${i + 1} déborde de ${(seg.t + d - next).toFixed(2)} s`);
@@ -35,8 +50,9 @@ for (const v of videos.filter((x) => !only || x.file === only)) {
   filters.push(
     `${v.voice.map((_, i) => `[v${i}]`).join('')}amix=inputs=${n}:normalize=0,` +
       // voix : on coupe les graves, on la rend plus présente et plus chaleureuse
-      'volume=3,highpass=f=90,equalizer=f=3000:t=q:w=1.2:g=3,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,' +
-      'aecho=0.8:0.5:40:0.12,asplit=2[voice][key]',
+      `volume=${PIPER ? 2 : 3},highpass=f=90,equalizer=f=3000:t=q:w=1.2:g=${PIPER ? 2 : 3},` +
+      'acompressor=threshold=-20dB:ratio=3:attack=5:release=80,' +
+      `${PIPER ? '' : 'aecho=0.8:0.5:40:0.12,'}asplit=2[voice][key]`,
     // musique plus basse, et qui s'efface automatiquement quand la voix parle
     '[1:a]volume=0.18[mus]',
     '[mus][key]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=300[ducked]',

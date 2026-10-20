@@ -2,7 +2,7 @@
 
 Les vidéos sont dans `marketing/tiktok/out/` (MP4 vertical 1080×1920, 30 i/s), avec une image de couverture pour chacune, en deux versions :
 
-- **`…-voix-musique.mp4`** : avec voix off (synthèse vocale française) et une musique originale libre de droits, prêtes à publier telles quelles ;
+- **`…-voix-musique.mp4`** : avec voix off réaliste (voix neuronale française Piper « Tom ») et une musique originale libre de droits, prêtes à publier telles quelles ;
 - **`….mp4`** : sans son, si vous préférez ajouter un **son tendance** dans TikTok (bouton « Ajouter un son ») ou enregistrer votre propre voix (option « Voix off » de TikTok).
 
 Astuce : une vraie voix (la vôtre) ou une voix de synthèse TikTok intégrée (« Texte → Synthèse vocale ») est souvent plus naturelle que la voix fournie.
@@ -79,6 +79,6 @@ Les scénarios sont dans `marketing/tiktok/videos.js` (textes, timings). Pour r�
 npm i -D playwright && npx playwright install chromium
 node marketing/tiktok/make-videos.js            # toutes les vidéos
 node marketing/tiktok/make-videos.js 01-devis-22h  # une seule
-# voix off + musique (prérequis : espeak-ng, mbrola, mbrola-fr1, python3 + numpy)
-node marketing/tiktok/add-audio.js
+# voix off + musique — voix réaliste Piper (pip install piper-tts + voix fr_FR-tom-medium depuis huggingface.co/rhasspy/piper-voices)
+PIPER_BIN=piper PIPER_MODEL=fr_FR-tom-medium.onnx PIPER_LENGTH_SCALE=0.86 node marketing/tiktok/add-audio.js
 ```
