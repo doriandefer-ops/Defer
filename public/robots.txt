@@ -3,6 +3,6 @@ Allow: /
 Disallow: /app
 Disallow: /api/
 Disallow: /document
+Disallow: /videos/
 
 Sitemap: https://mdia.onrender.com/sitemap.xml
-Disallow: /videos/
