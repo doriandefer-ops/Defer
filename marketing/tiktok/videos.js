@@ -36,6 +36,13 @@ const resiliationDoc = `
 module.exports = [
   {
     file: '01-devis-22h',
+    // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
+    voice: [
+      { t: 0.3, text: "Il est vingt-deux heures, et t'as encore six devis à faire ?" },
+      { t: 3.3, text: "Avec èm dé i a, tu écris juste ce que tu veux." },
+      { t: 7.0, text: "Et ton devis est prêt. Té vé a comprise. En trente secondes." },
+      { t: 14.3, text: "Essai gratuit. Le lien est dans la bio." },
+    ],
     duration: 17,
     captions: [
       { t0: 0, t1: 3, text: 'POV : il est 22h et t’as encore **6 devis** à faire 😩' },
@@ -56,6 +63,13 @@ module.exports = [
   },
   {
     file: '02-client-paie-pas',
+    // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
+    voice: [
+      { t: 0.3, text: "Le client qui paie toujours pas sa facture ?" },
+      { t: 3.2, text: "Demande à èm dé i a d'écrire la relance." },
+      { t: 6.8, text: "Polie, ferme, et prête à envoyer." },
+      { t: 14.3, text: "Fini de courir après les impayés. Lien en bio." },
+    ],
     duration: 17,
     captions: [
       { t0: 0, t1: 3, text: 'Le client qui paie **toujours pas** sa facture 🙄' },
@@ -75,6 +89,13 @@ module.exports = [
   },
   {
     file: '03-devis-en-facture',
+    // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
+    voice: [
+      { t: 0.3, text: "Ta cliente a accepté le devis ?" },
+      { t: 3.2, text: "Une phrase, et èm dé i a le transforme en facture." },
+      { t: 9.2, text: "Sans rien retaper." },
+      { t: 12.8, text: "Essaie gratuitement. Lien en bio." },
+    ],
     duration: 15,
     captions: [
       { t0: 0, t1: 3, text: 'Elle a **accepté le devis** ✅' },
@@ -95,6 +116,13 @@ module.exports = [
   },
   {
     file: '04-resilier-box',
+    // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
+    voice: [
+      { t: 0.3, text: "Résilier sa box internet sans y passer une heure ?" },
+      { t: 3.2, text: "Demande simplement la lettre à èm dé i a." },
+      { t: 10.1, text: "Elle est prête. Tu n'as plus qu'à signer." },
+      { t: 13.1, text: "Tes papiers, enfin simples. Lien en bio." },
+    ],
     duration: 16,
     captions: [
       { t0: 0, t1: 3, text: 'Résilier sa box internet **sans y passer 1h** 📦' },
@@ -114,6 +142,13 @@ module.exports = [
   },
   {
     file: '05-chrono-devis',
+    // Voix off (orthographe phonétique pour la synthèse : « èm dé i a » = MDIA)
+    voice: [
+      { t: 0.3, text: "Un devis à la main ? Vingt-cinq minutes." },
+      { t: 3.9, text: "Le même avec èm dé i a ? Trente secondes." },
+      { t: 7.7, text: "Et toi, tu perds combien d'heures par semaine ?" },
+      { t: 10.2, text: "Récupère tes soirées. Lien en bio." },
+    ],
     duration: 13,
     captions: [
       { t0: 0, t1: 3.6, text: 'Un devis **à la main** :' },
