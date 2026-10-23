@@ -519,7 +519,7 @@ async function renderDocuments(query) {
             ${d.type === 'facture' && ['envoyee', 'en_retard'].includes(d.status) && state.me.mailConfigured ? `<button class="btn btn-small" data-remind="${d.id}" ${d.client?.email ? '' : 'disabled title="Ajoutez l’email du client dans la page Clients"'}>✉ Relancer</button>` : ''}
             <button class="btn btn-small btn-danger" data-del="${d.id}" aria-label="Supprimer">✕</button>
           </td></tr>`).join('')}
-        </tbody></table></div>` : `<p class="empty">Aucun ${type === 'devis' ? 'devis' : 'facture'} pour l’instant.</p>`}
+        </tbody></table></div>` : `<p class="empty">${type === 'devis' ? 'Aucun devis' : 'Aucune facture'} pour l’instant.</p>`}
       </div>
     </div>`;
 
