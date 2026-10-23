@@ -504,19 +504,18 @@ async function renderDocuments(query) {
           <button class="btn btn-primary" type="submit">Créer</button>
         </form>
       </details>
-      ${type === 'facture' ? remindersBanner() : ''}
       <div class="card">
         ${documents.length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Date</th><th>Statut</th><th class="num">Total TTC</th><th></th></tr></thead><tbody>
         ${documents.map((d) => `<tr>
           <td><a href="/document?id=${d.id}" target="_blank">${esc(d.number)}</a></td>
           <td>${esc(d.client?.name || '—')}</td>
           <td>${frDate(d.issue_date)}</td>
-          <td><select data-status="${d.id}" style="width:auto">${STATUSES[d.type].map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}</select>${reminderInfo(d)}</td>
+          <td><select data-status="${d.id}" style="width:auto">${STATUSES[d.type].map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}</select></td>
           <td class="num">${eur(d.total_ttc)}</td>
           <td class="actions">
+            <button class="btn btn-small btn-primary" data-send="${d.id}">Envoyer au client</button>
             <a class="btn btn-small" href="/document?id=${d.id}" target="_blank">PDF</a>
             ${d.type === 'devis' ? `<button class="btn btn-small" data-convert="${d.id}">→ Facture</button>` : ''}
-            ${d.type === 'facture' && ['envoyee', 'en_retard'].includes(d.status) && state.me.mailConfigured ? `<button class="btn btn-small" data-remind="${d.id}" ${d.client?.email ? '' : 'disabled title="Ajoutez l’email du client dans la page Clients"'}>✉ Relancer</button>` : ''}
             <button class="btn btn-small btn-danger" data-del="${d.id}" aria-label="Supprimer">✕</button>
           </td></tr>`).join('')}
         </tbody></table></div>` : `<p class="empty">${type === 'devis' ? 'Aucun devis' : 'Aucune facture'} pour l’instant.</p>`}
@@ -556,20 +555,8 @@ async function renderDocuments(query) {
       }),
     ),
   );
-  view.querySelectorAll('[data-remind]').forEach((b) =>
-    b.addEventListener('click', () =>
-      attempt(async () => {
-        if (!confirm('Envoyer maintenant un email de relance au client ?')) return;
-        b.disabled = true;
-        try {
-          await api(`/documents/${b.dataset.remind}/relancer`, { method: 'POST', body: {} });
-          toast('Relance envoyée au client');
-          router();
-        } finally {
-          b.disabled = false;
-        }
-      }),
-    ),
+  view.querySelectorAll('[data-send]').forEach((b) =>
+    b.addEventListener('click', () => attempt(() => sendToClient(documents.find((d) => d.id === Number(b.dataset.send))))),
   );
   view.querySelectorAll('[data-convert]').forEach((b) =>
     b.addEventListener('click', () =>
@@ -591,25 +578,114 @@ async function renderDocuments(query) {
   );
 }
 
-function reminderInfo(d) {
-  if (d.type !== 'facture') return '';
-  const r = d.reminders || [];
-  if (r.length) {
-    const last = r[r.length - 1];
-    return `<div class="muted small">✉ ${r.length} relance${r.length > 1 ? 's' : ''} · ${frDate(last.sent_at.slice(0, 10))}</div>`;
+// ---------- Envoi d'un devis / d'une facture au client (PDF + message prêt à envoyer) ----------
+const SHARE_STYLES = ['Classique', 'Courte', 'Chaleureuse'];
+
+function shareMessages(d) {
+  const u = state.me.user;
+  const sig = u.companyName || u.name;
+  const hello = `Bonjour${d.client?.name ? ` ${d.client.name}` : ''},`;
+  const ttc = eur(d.total_ttc);
+  const due = d.due_date ? frDate(d.due_date) : null;
+  if (d.type === 'devis') {
+    return [
+      `${hello}\n\nComme convenu, voici le devis ${d.number} pour les travaux, d'un montant de ${ttc} TTC.${due ? ` Il est valable jusqu'au ${due}.` : ''} N'hésitez pas si vous avez des questions.\n\nCordialement,\n${sig}`,
+      `${hello}\n\nVous trouverez ci-joint votre devis ${d.number} (${ttc} TTC).\n\nBonne journée,\n${sig}`,
+      `${hello}\n\nMerci pour votre confiance. Voici le devis ${d.number} d'un montant de ${ttc} TTC. Si tout vous convient, il vous suffit de me le renvoyer signé avec la mention « Bon pour accord ».\n\nÀ bientôt,\n${sig}`,
+    ];
   }
-  if (['envoyee', 'en_retard'].includes(d.status) && !d.client?.email) return '<div class="muted small">Email du client manquant</div>';
-  return '';
+  return [
+    `${hello}\n\nVoici la facture ${d.number} pour les travaux réalisés, d'un montant de ${ttc} TTC${due ? `, à régler avant le ${due}` : ''}. Merci d'avance pour votre règlement.\n\nCordialement,\n${sig}`,
+    `${hello}\n\nVous trouverez ci-joint votre facture ${d.number} (${ttc} TTC).\n\nBonne journée,\n${sig}`,
+    `${hello}\n\nMerci encore pour votre confiance, ce fut un plaisir de travailler pour vous. Vous trouverez ci-joint la facture ${d.number} d'un montant de ${ttc} TTC${due ? `, à régler avant le ${due}` : ''}.\n\nÀ bientôt,\n${sig}`,
+  ];
 }
 
-function remindersBanner() {
-  if (!state.me.mailConfigured) return '';
-  if (state.me.user.autoReminders) {
-    return '<p class="muted small">✉ Relances automatiques activées : vos clients sont relancés par email 3, 10 et 20 jours après l’échéance d’une facture impayée.</p>';
+async function fetchPdf(d) {
+  const res = await fetch(`/api/documents/${d.id}/pdf`);
+  if (!res.ok) throw new Error('Impossible de préparer le PDF.');
+  const name = decodeURIComponent((res.headers.get('content-disposition') || '').match(/filename\*=UTF-8''([^;]+)/)?.[1] || `${d.number}.pdf`);
+  return new File([await res.blob()], name, { type: 'application/pdf' });
+}
+
+function modal(html) {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-backdrop';
+  wrap.innerHTML = `<div class="modal card" role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener('click', (e) => e.target === wrap && close());
+  return { el: wrap, close };
+}
+
+// Partage : sur téléphone, menu de partage avec le PDF joint et le message ; sinon, message copié + PDF téléchargé.
+async function deliver(d, message, filePromise) {
+  try {
+    await navigator.clipboard?.writeText(message); // copie de secours, si l'appli choisie ne reprend pas le texte
+  } catch {
+    /* presse-papiers indisponible : sans conséquence */
   }
-  return `<div class="card"><strong>Relances automatiques</strong>
-    <p class="muted small" style="margin:6px 0 10px">MDIA peut relancer vos clients par email quand une facture n’est pas payée à temps (3, 10 et 20 jours après l’échéance).</p>
-    <a class="btn btn-small btn-primary" href="#parametres">Activer dans les paramètres</a></div>`;
+  const file = await filePromise;
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], text: message, title: file.name.replace(/\.pdf$/, '') });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return; // l'artisan a fermé le menu de partage
+      if (err.name === 'NotAllowedError') {
+        // Le navigateur exige un nouvel appui (préparation du PDF trop longue) : un clic suffit.
+        const m = modal(`<h2>Prêt à envoyer</h2><p class="muted">Le ${d.type} ${esc(d.number)} et votre message sont prêts.</p>
+          <div class="modal-actions"><button class="btn" data-x>Annuler</button><button class="btn btn-primary" data-go>Partager</button></div>`);
+        m.el.querySelector('[data-x]').onclick = m.close;
+        m.el.querySelector('[data-go]').onclick = () => {
+          m.close();
+          navigator.share({ files: [file], text: message }).catch(() => {});
+        };
+        return;
+      }
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast('Message copié et PDF téléchargé : collez le message et joignez le PDF à votre envoi');
+}
+
+async function sendToClient(d) {
+  const messages = shareMessages(d);
+  const saved = state.me.user.shareChoices?.[d.type];
+  const filePromise = fetchPdf(d);
+  filePromise.catch(() => {});
+  if (Number.isInteger(saved) && messages[saved]) return deliver(d, messages[saved], filePromise);
+
+  const m = modal(`
+    <h2>Envoyer ${d.type === 'devis' ? 'le devis' : 'la facture'} ${esc(d.number)}</h2>
+    <p class="muted small">Choisissez un message. Il sera envoyé avec le PDF ${d.type === 'devis' ? 'du devis' : 'de la facture'} (WhatsApp, SMS, email…).</p>
+    <div class="share-options">${messages.map((msg, i) => `
+      <label class="share-option"><input type="radio" name="msg" value="${i}" ${i === 0 ? 'checked' : ''}>
+        <span><strong>${SHARE_STYLES[i]}</strong><span class="share-text">${esc(msg)}</span></span></label>`).join('')}
+    </div>
+    <label class="check"><input type="checkbox" id="remember"> Ne plus me demander (toujours utiliser ce message pour les ${d.type === 'devis' ? 'devis' : 'factures'})</label>
+    <div class="modal-actions"><button class="btn" data-x>Annuler</button><button class="btn btn-primary" data-go>Envoyer</button></div>`);
+  m.el.querySelector('[data-x]').onclick = m.close;
+  m.el.querySelector('[data-go]').onclick = () =>
+    attempt(async () => {
+      const choice = Number(m.el.querySelector('input[name=msg]:checked').value);
+      const remember = m.el.querySelector('#remember').checked;
+      m.close();
+      const sending = deliver(d, messages[choice], filePromise);
+      if (remember) {
+        const shareChoices = { ...(state.me.user.shareChoices || {}), [d.type]: choice };
+        await api('/me', { method: 'PATCH', body: { shareChoices } });
+        state.me.user.shareChoices = shareChoices;
+        toast('Message enregistré : vous pourrez le changer dans les Paramètres');
+      }
+      await sending;
+    });
 }
 
 // ---------- Abonnement ----------
@@ -804,13 +880,14 @@ async function renderSettings() {
           <input type="checkbox" id="branding" ${u.showBranding ? 'checked' : ''} style="width:auto;margin-top:4px">
           <label for="branding" style="font-weight:400">Afficher la mention discrète « Créé avec MDIA » en bas de mes devis et factures</label>
         </div>
-        ${has('documents') ? `<h2 style="margin-top:24px">Relances automatiques</h2>
-        <div class="field" style="display:flex;gap:8px;align-items:flex-start">
-          <input type="checkbox" id="autoReminders" ${u.autoReminders ? 'checked' : ''} ${state.me.mailConfigured ? '' : 'disabled'} style="width:auto;margin-top:4px">
-          <label for="autoReminders" style="font-weight:400">Relancer automatiquement mes clients par email quand une facture n’est pas payée : 3, 10 puis 20 jours après la date d’échéance.
-          Les emails partent à votre nom et vos clients vous répondent directement.</label>
-        </div>
-        <p class="muted small">${state.me.mailConfigured ? 'Les factures doivent être au statut « Envoyée » et le client doit avoir une adresse email (page Clients). Passez la facture en « Payée » pour arrêter les relances.' : 'L’envoi d’emails sera bientôt disponible.'}</p>` : ''}` : ''}
+        ${has('documents') ? `<h2 style="margin-top:24px">Message d’envoi aux clients</h2>
+        <p class="muted small">Le message joint au PDF quand vous appuyez sur « Envoyer au client ».</p>
+        <div class="row">${['devis', 'facture'].map((t) => `
+          <div class="field"><label>${t === 'devis' ? 'Devis' : 'Factures'}</label>
+            <select data-share="${t}"><option value="">Me demander à chaque fois</option>
+              ${SHARE_STYLES.map((s, i) => `<option value="${i}" ${u.shareChoices?.[t] === i ? 'selected' : ''}>${s}</option>`).join('')}
+            </select></div>`).join('')}
+        </div>` : ''}` : ''}
       <button class="btn btn-primary" type="submit">Enregistrer</button>
     </form>
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -828,8 +905,12 @@ async function renderSettings() {
       const body = Object.fromEntries(new FormData(e.target));
       const branding = document.getElementById('branding');
       if (branding) body.showBranding = branding.checked;
-      const autoReminders = document.getElementById('autoReminders');
-      if (autoReminders && !autoReminders.disabled) body.autoReminders = autoReminders.checked;
+      const shareSelects = document.querySelectorAll('[data-share]');
+      if (shareSelects.length) {
+        body.shareChoices = Object.fromEntries(
+          [...shareSelects].filter((s) => s.value !== '').map((s) => [s.dataset.share, Number(s.value)]),
+        );
+      }
       await api('/me', { method: 'PATCH', body });
       await refreshMe();
       toast('Paramètres enregistrés');

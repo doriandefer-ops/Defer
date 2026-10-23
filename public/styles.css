@@ -208,3 +208,16 @@ td.actions { text-align: right; white-space: nowrap; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat .value { font-size: 1.3rem; }
 }
+
+/* Fenêtre « Envoyer au client » */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 60; }
+.modal { width: 100%; max-width: 560px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.modal h2 { font-size: 1.2rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.share-options { display: grid; gap: 10px; margin: 12px 0; }
+.share-option { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: 12px; cursor: pointer; font-weight: 400; margin: 0; }
+.share-option:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.share-option input { width: auto; margin-top: 4px; }
+.share-text { display: block; white-space: pre-line; color: var(--muted); font-size: .875rem; margin-top: 4px; }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 400; font-size: .9rem; }
+.check input { width: auto; }

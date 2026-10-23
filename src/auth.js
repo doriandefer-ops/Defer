@@ -100,7 +100,13 @@ function publicUser(u) {
     phone: u.phone,
     vatRate: u.vat_rate,
     showBranding: u.show_branding !== 0,
-    autoReminders: u.auto_reminders === 1,
+    shareChoices: (() => {
+      try {
+        return JSON.parse(u.share_prefs || '{}');
+      } catch {
+        return {};
+      }
+    })(),
     isAdmin: isAdmin(u),
   };
 }

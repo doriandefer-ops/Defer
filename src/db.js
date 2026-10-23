@@ -114,25 +114,9 @@ const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.na
 if (!userColumns.includes('show_branding')) {
   db.exec('ALTER TABLE users ADD COLUMN show_branding INTEGER NOT NULL DEFAULT 1');
 }
-if (!userColumns.includes('auto_reminders')) {
-  db.exec('ALTER TABLE users ADD COLUMN auto_reminders INTEGER NOT NULL DEFAULT 0');
+// Message d'envoi retenu par l'artisan (« ne plus me demander »), par type de document : {"devis":1,"facture":0}
+if (!userColumns.includes('share_prefs')) {
+  db.exec("ALTER TABLE users ADD COLUMN share_prefs TEXT NOT NULL DEFAULT '{}'");
 }
-const documentColumns = db.prepare('PRAGMA table_info(documents)').all().map((c) => c.name);
-if (!documentColumns.includes('public_token')) {
-  db.exec('ALTER TABLE documents ADD COLUMN public_token TEXT');
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_token ON documents(public_token)');
-}
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS invoice_reminders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  level INTEGER NOT NULL,
-  to_email TEXT NOT NULL,
-  manual INTEGER NOT NULL DEFAULT 0,
-  sent_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_reminders_doc ON invoice_reminders(document_id);
-`);
 
 module.exports = db;

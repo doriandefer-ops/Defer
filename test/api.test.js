@@ -1,8 +1,6 @@
 process.env.DATABASE_PATH = ':memory:';
 process.env.ADMIN_EMAILS = 'admin@test.fr';
 process.env.RATE_LIMIT_DISABLED = 'true';
-process.env.MAIL_API_URL = 'http://127.0.0.1:45917/v3/smtp/email';
-process.env.PUBLIC_URL = 'https://mdia.test';
 delete process.env.STRIPE_SECRET_KEY;
 
 const test = require('node:test');
@@ -196,85 +194,41 @@ test('statistiques : visites anonymes et accès réservé à l’administrateur'
   assert.ok(s.users.recent.some((u) => u.email === 'curieux@test.fr'));
 });
 
-
-test('relances par email des factures impayées', async () => {
-  const http = require('node:http');
-  const sent = [];
-  const mail = http.createServer((req, res) => {
-    let b = '';
-    req.on('data', (c) => (b += c));
-    req.on('end', () => {
-      sent.push({ key: req.headers['api-key'], body: JSON.parse(b) });
-      res.setHeader('content-type', 'application/json');
-      res.end('{"messageId":"x"}');
-    });
+test('envoi au client : PDF du document et message mémorisé', async () => {
+  const a = agent();
+  await a('/auth/register', { method: 'POST', body: { email: 'pdf@test.fr', password: 'motdepasse', name: 'Carrelage Dupont', accountType: 'artisan' } });
+  await a('/billing/checkout', { method: 'POST', body: { plan: 'artisan' } });
+  const q = await a('/documents', {
+    method: 'POST',
+    body: { type: 'devis', client_name: 'Mme Martin', items: [{ description: 'Pose carrelage', quantity: 12, unit: 'm²', unit_price: 45 }] },
   });
-  await new Promise((r) => mail.listen(45917, r));
-  const db = require('../src/db');
-  const reminders = require('../src/reminders');
-  try {
-    const a = agent();
-    await a('/auth/register', { method: 'POST', body: { email: 'relance@test.fr', password: 'motdepasse', name: 'Plomberie Durand', accountType: 'artisan' } });
-    await a('/billing/checkout', { method: 'POST', body: { plan: 'artisan' } });
-    await a('/clients', { method: 'POST', body: { name: 'M. Martin', email: 'martin@client.fr' } });
-    const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
-    const inv = (await a('/documents', { method: 'POST', body: {
-      type: 'facture', client_name: 'M. Martin', issue_date: daysAgo(40), due_date: daysAgo(12),
-      items: [{ description: 'Chauffe-eau', quantity: 1, unit_price: 850 }],
-    } })).body.document;
-    await a(`/documents/${inv.id}/statut`, { method: 'POST', body: { status: 'envoyee' } });
+  const me = await a('/me');
 
-    // Emails non configurés : rien ne part, la relance manuelle est refusée proprement
-    assert.equal((await reminders.runAutomaticReminders()).sent, 0);
-    assert.equal((await a(`/documents/${inv.id}/relancer`, { method: 'POST', body: {} })).status, 503);
+  // Le PDF se télécharge avec le bon type et un nom lisible
+  const login = await fetch(`${base}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'pdf@test.fr', password: 'motdepasse' }),
+  });
+  const sid = login.headers.get('set-cookie').split(';')[0];
+  const res = await fetch(`${base}/documents/${q.body.document.id}/pdf`, { headers: { cookie: sid } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'application/pdf');
+  assert.match(decodeURIComponent(res.headers.get('content-disposition')), /Devis D-\d{4}-0001 - Carrelage Dupont\.pdf/);
+  assert.equal(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
 
-    process.env.BREVO_API_KEY = 'cle-test';
-    process.env.MAIL_FROM = 'relances@mdia.test';
-    // Option désactivée par défaut : pas d'envoi automatique
-    assert.equal((await reminders.runAutomaticReminders()).sent, 0);
-    assert.equal((await a('/me')).body.mailConfigured, true);
+  // « Ne plus me demander » : seul un choix valide (0, 1 ou 2) par type est gardé
+  assert.deepEqual(me.body.user.shareChoices, {});
+  await a('/me', { method: 'PATCH', body: { shareChoices: { devis: 2, facture: 7, autre: 1 } } });
+  assert.deepEqual((await a('/me')).body.user.shareChoices, { devis: 2 });
+  await a('/me', { method: 'PATCH', body: { shareChoices: {} } });
+  assert.deepEqual((await a('/me')).body.user.shareChoices, {});
 
-    await a('/me', { method: 'PATCH', body: { autoReminders: true } });
-    assert.equal((await reminders.runAutomaticReminders()).sent, 1); // 12 jours de retard -> 1re relance
-    assert.equal((await reminders.runAutomaticReminders()).sent, 0); // pas deux fois le même jour
-    assert.equal(sent.length, 1);
-    const email = sent[0].body;
-    assert.equal(sent[0].key, 'cle-test');
-    assert.equal(email.to[0].email, 'martin@client.fr');
-    assert.equal(email.replyTo.email, 'relance@test.fr');
-    assert.equal(email.sender.name, 'Plomberie Durand');
-    assert.match(email.subject, /F-\d{4}-0001/);
-    assert.match(email.textContent, /1[\s\u202f]020,00/);
-    const link = email.textContent.match(/https:\/\/mdia\.test\/facture\/([\w-]+)/);
-    assert.ok(link, 'lien public vers la facture');
-
-    // Le lien public montre la facture sans connexion
-    const pub = await fetch(base.replace('/api', `/api/public/factures/${link[1]}`)).then((r) => r.json());
-    assert.equal(pub.document.number, inv.number);
-    assert.equal(pub.document.user_id, undefined);
-    assert.equal((await fetch(base.replace('/api', '/api/public/factures/inconnu'))).status, 404);
-
-    // Statut passé en retard, et historique visible dans la liste
-    const list = (await a('/documents?type=facture')).body.documents;
-    assert.equal(list[0].status, 'en_retard');
-    assert.equal(list[0].reminders.length, 1);
-
-    // Relance manuelle refusée moins de 24 h après la précédente
-    assert.equal((await a(`/documents/${inv.id}/relancer`, { method: 'POST', body: {} })).status, 400);
-
-    // 2e relance automatique quand l'échéance est assez ancienne et la précédente date de 5 jours
-    db.prepare("UPDATE invoice_reminders SET sent_at = datetime('now', '-6 days')").run();
-    assert.equal((await reminders.runAutomaticReminders()).sent, 1);
-    assert.equal(sent[1].body.subject.startsWith('Relance'), true);
-
-    // Facture payée : plus aucune relance
-    await a(`/documents/${inv.id}/statut`, { method: 'POST', body: { status: 'payee' } });
-    db.prepare("UPDATE invoice_reminders SET sent_at = datetime('now', '-30 days')").run();
-    db.prepare('UPDATE documents SET due_date = ? WHERE id = ?').run(daysAgo(60), inv.id);
-    assert.equal((await reminders.runAutomaticReminders()).sent, 0);
-  } finally {
-    delete process.env.BREVO_API_KEY;
-    delete process.env.MAIL_FROM;
-    mail.close();
-  }
+  // Un autre compte ne peut pas récupérer ce PDF
+  const other = agent();
+  await other('/auth/register', { method: 'POST', body: { email: 'pdf2@test.fr', password: 'motdepasse', name: 'Y', accountType: 'artisan' } });
+  await other('/billing/checkout', { method: 'POST', body: { plan: 'artisan' } });
+  const o = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'pdf2@test.fr', password: 'motdepasse' }) });
+  const r2 = await fetch(`${base}/documents/${q.body.document.id}/pdf`, { headers: { cookie: o.headers.get('set-cookie').split(';')[0] } });
+  assert.equal(r2.status, 404);
 });
