@@ -1,6 +1,8 @@
 process.env.DATABASE_PATH = ':memory:';
 process.env.ADMIN_EMAILS = 'admin@test.fr';
 process.env.RATE_LIMIT_DISABLED = 'true';
+process.env.MAIL_API_URL = 'http://127.0.0.1:45917/v3/smtp/email';
+process.env.PUBLIC_URL = 'https://mdia.test';
 delete process.env.STRIPE_SECRET_KEY;
 
 const test = require('node:test');
@@ -192,4 +194,87 @@ test('statistiques : visites anonymes et accès réservé à l’administrateur'
   assert.equal(s.daily.length, 30);
   assert.ok(s.users.total >= 2);
   assert.ok(s.users.recent.some((u) => u.email === 'curieux@test.fr'));
+});
+
+
+test('relances par email des factures impayées', async () => {
+  const http = require('node:http');
+  const sent = [];
+  const mail = http.createServer((req, res) => {
+    let b = '';
+    req.on('data', (c) => (b += c));
+    req.on('end', () => {
+      sent.push({ key: req.headers['api-key'], body: JSON.parse(b) });
+      res.setHeader('content-type', 'application/json');
+      res.end('{"messageId":"x"}');
+    });
+  });
+  await new Promise((r) => mail.listen(45917, r));
+  const db = require('../src/db');
+  const reminders = require('../src/reminders');
+  try {
+    const a = agent();
+    await a('/auth/register', { method: 'POST', body: { email: 'relance@test.fr', password: 'motdepasse', name: 'Plomberie Durand', accountType: 'artisan' } });
+    await a('/billing/checkout', { method: 'POST', body: { plan: 'artisan' } });
+    await a('/clients', { method: 'POST', body: { name: 'M. Martin', email: 'martin@client.fr' } });
+    const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+    const inv = (await a('/documents', { method: 'POST', body: {
+      type: 'facture', client_name: 'M. Martin', issue_date: daysAgo(40), due_date: daysAgo(12),
+      items: [{ description: 'Chauffe-eau', quantity: 1, unit_price: 850 }],
+    } })).body.document;
+    await a(`/documents/${inv.id}/statut`, { method: 'POST', body: { status: 'envoyee' } });
+
+    // Emails non configurés : rien ne part, la relance manuelle est refusée proprement
+    assert.equal((await reminders.runAutomaticReminders()).sent, 0);
+    assert.equal((await a(`/documents/${inv.id}/relancer`, { method: 'POST', body: {} })).status, 503);
+
+    process.env.BREVO_API_KEY = 'cle-test';
+    process.env.MAIL_FROM = 'relances@mdia.test';
+    // Option désactivée par défaut : pas d'envoi automatique
+    assert.equal((await reminders.runAutomaticReminders()).sent, 0);
+    assert.equal((await a('/me')).body.mailConfigured, true);
+
+    await a('/me', { method: 'PATCH', body: { autoReminders: true } });
+    assert.equal((await reminders.runAutomaticReminders()).sent, 1); // 12 jours de retard -> 1re relance
+    assert.equal((await reminders.runAutomaticReminders()).sent, 0); // pas deux fois le même jour
+    assert.equal(sent.length, 1);
+    const email = sent[0].body;
+    assert.equal(sent[0].key, 'cle-test');
+    assert.equal(email.to[0].email, 'martin@client.fr');
+    assert.equal(email.replyTo.email, 'relance@test.fr');
+    assert.equal(email.sender.name, 'Plomberie Durand');
+    assert.match(email.subject, /F-\d{4}-0001/);
+    assert.match(email.textContent, /1[\s\u202f]020,00/);
+    const link = email.textContent.match(/https:\/\/mdia\.test\/facture\/([\w-]+)/);
+    assert.ok(link, 'lien public vers la facture');
+
+    // Le lien public montre la facture sans connexion
+    const pub = await fetch(base.replace('/api', `/api/public/factures/${link[1]}`)).then((r) => r.json());
+    assert.equal(pub.document.number, inv.number);
+    assert.equal(pub.document.user_id, undefined);
+    assert.equal((await fetch(base.replace('/api', '/api/public/factures/inconnu'))).status, 404);
+
+    // Statut passé en retard, et historique visible dans la liste
+    const list = (await a('/documents?type=facture')).body.documents;
+    assert.equal(list[0].status, 'en_retard');
+    assert.equal(list[0].reminders.length, 1);
+
+    // Relance manuelle refusée moins de 24 h après la précédente
+    assert.equal((await a(`/documents/${inv.id}/relancer`, { method: 'POST', body: {} })).status, 400);
+
+    // 2e relance automatique quand l'échéance est assez ancienne et la précédente date de 5 jours
+    db.prepare("UPDATE invoice_reminders SET sent_at = datetime('now', '-6 days')").run();
+    assert.equal((await reminders.runAutomaticReminders()).sent, 1);
+    assert.equal(sent[1].body.subject.startsWith('Relance'), true);
+
+    // Facture payée : plus aucune relance
+    await a(`/documents/${inv.id}/statut`, { method: 'POST', body: { status: 'payee' } });
+    db.prepare("UPDATE invoice_reminders SET sent_at = datetime('now', '-30 days')").run();
+    db.prepare('UPDATE documents SET due_date = ? WHERE id = ?').run(daysAgo(60), inv.id);
+    assert.equal((await reminders.runAutomaticReminders()).sent, 0);
+  } finally {
+    delete process.env.BREVO_API_KEY;
+    delete process.env.MAIL_FROM;
+    mail.close();
+  }
 });

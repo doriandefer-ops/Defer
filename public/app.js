@@ -491,7 +491,7 @@ async function renderDocuments(query) {
       <div><a class="btn btn-small ${type === 'devis' ? 'btn-primary' : ''}" href="#documents?type=devis">Devis</a>
       <a class="btn btn-small ${type === 'facture' ? 'btn-primary' : ''}" href="#documents?type=facture">Factures</a></div></div>
     <div class="stack">
-      <details class="card"><summary><strong>＋ Nouveau ${type === 'devis' ? 'devis' : 'facture'}</strong> <span class="muted small">(ou demandez-le simplement à l’assistant)</span></summary>
+      <details class="card"><summary><strong>＋ ${type === 'devis' ? 'Nouveau devis' : 'Nouvelle facture'}</strong> <span class="muted small">(ou demandez-le simplement à l’assistant)</span></summary>
         <form id="form" style="margin-top:16px">
           <div class="row">
             <div class="field"><label>Client existant</label><select name="client_id"><option value="">— Choisir —</option>${clients.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
@@ -504,17 +504,19 @@ async function renderDocuments(query) {
           <button class="btn btn-primary" type="submit">Créer</button>
         </form>
       </details>
+      ${type === 'facture' ? remindersBanner() : ''}
       <div class="card">
         ${documents.length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Date</th><th>Statut</th><th class="num">Total TTC</th><th></th></tr></thead><tbody>
         ${documents.map((d) => `<tr>
           <td><a href="/document?id=${d.id}" target="_blank">${esc(d.number)}</a></td>
           <td>${esc(d.client?.name || '—')}</td>
           <td>${frDate(d.issue_date)}</td>
-          <td><select data-status="${d.id}" style="width:auto">${STATUSES[d.type].map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}</select></td>
+          <td><select data-status="${d.id}" style="width:auto">${STATUSES[d.type].map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}</select>${reminderInfo(d)}</td>
           <td class="num">${eur(d.total_ttc)}</td>
           <td class="actions">
             <a class="btn btn-small" href="/document?id=${d.id}" target="_blank">PDF</a>
             ${d.type === 'devis' ? `<button class="btn btn-small" data-convert="${d.id}">→ Facture</button>` : ''}
+            ${d.type === 'facture' && ['envoyee', 'en_retard'].includes(d.status) && state.me.mailConfigured ? `<button class="btn btn-small" data-remind="${d.id}" ${d.client?.email ? '' : 'disabled title="Ajoutez l’email du client dans la page Clients"'}>✉ Relancer</button>` : ''}
             <button class="btn btn-small btn-danger" data-del="${d.id}" aria-label="Supprimer">✕</button>
           </td></tr>`).join('')}
         </tbody></table></div>` : `<p class="empty">Aucun ${type === 'devis' ? 'devis' : 'facture'} pour l’instant.</p>`}
@@ -554,6 +556,21 @@ async function renderDocuments(query) {
       }),
     ),
   );
+  view.querySelectorAll('[data-remind]').forEach((b) =>
+    b.addEventListener('click', () =>
+      attempt(async () => {
+        if (!confirm('Envoyer maintenant un email de relance au client ?')) return;
+        b.disabled = true;
+        try {
+          await api(`/documents/${b.dataset.remind}/relancer`, { method: 'POST', body: {} });
+          toast('Relance envoyée au client');
+          router();
+        } finally {
+          b.disabled = false;
+        }
+      }),
+    ),
+  );
   view.querySelectorAll('[data-convert]').forEach((b) =>
     b.addEventListener('click', () =>
       attempt(async () => {
@@ -572,6 +589,27 @@ async function renderDocuments(query) {
       }),
     ),
   );
+}
+
+function reminderInfo(d) {
+  if (d.type !== 'facture') return '';
+  const r = d.reminders || [];
+  if (r.length) {
+    const last = r[r.length - 1];
+    return `<div class="muted small">✉ ${r.length} relance${r.length > 1 ? 's' : ''} · ${frDate(last.sent_at.slice(0, 10))}</div>`;
+  }
+  if (['envoyee', 'en_retard'].includes(d.status) && !d.client?.email) return '<div class="muted small">Email du client manquant</div>';
+  return '';
+}
+
+function remindersBanner() {
+  if (!state.me.mailConfigured) return '';
+  if (state.me.user.autoReminders) {
+    return '<p class="muted small">✉ Relances automatiques activées : vos clients sont relancés par email 3, 10 et 20 jours après l’échéance d’une facture impayée.</p>';
+  }
+  return `<div class="card"><strong>Relances automatiques</strong>
+    <p class="muted small" style="margin:6px 0 10px">MDIA peut relancer vos clients par email quand une facture n’est pas payée à temps (3, 10 et 20 jours après l’échéance).</p>
+    <a class="btn btn-small btn-primary" href="#parametres">Activer dans les paramètres</a></div>`;
 }
 
 // ---------- Abonnement ----------
@@ -765,7 +803,14 @@ async function renderSettings() {
         <div class="field" style="display:flex;gap:8px;align-items:flex-start">
           <input type="checkbox" id="branding" ${u.showBranding ? 'checked' : ''} style="width:auto;margin-top:4px">
           <label for="branding" style="font-weight:400">Afficher la mention discrète « Créé avec MDIA » en bas de mes devis et factures</label>
-        </div>` : ''}
+        </div>
+        ${has('documents') ? `<h2 style="margin-top:24px">Relances automatiques</h2>
+        <div class="field" style="display:flex;gap:8px;align-items:flex-start">
+          <input type="checkbox" id="autoReminders" ${u.autoReminders ? 'checked' : ''} ${state.me.mailConfigured ? '' : 'disabled'} style="width:auto;margin-top:4px">
+          <label for="autoReminders" style="font-weight:400">Relancer automatiquement mes clients par email quand une facture n’est pas payée : 3, 10 puis 20 jours après la date d’échéance.
+          Les emails partent à votre nom et vos clients vous répondent directement.</label>
+        </div>
+        <p class="muted small">${state.me.mailConfigured ? 'Les factures doivent être au statut « Envoyée » et le client doit avoir une adresse email (page Clients). Passez la facture en « Payée » pour arrêter les relances.' : 'L’envoi d’emails sera bientôt disponible.'}</p>` : ''}` : ''}
       <button class="btn btn-primary" type="submit">Enregistrer</button>
     </form>
     <div class="card" style="max-width:640px;margin-top:16px">
@@ -783,6 +828,8 @@ async function renderSettings() {
       const body = Object.fromEntries(new FormData(e.target));
       const branding = document.getElementById('branding');
       if (branding) body.showBranding = branding.checked;
+      const autoReminders = document.getElementById('autoReminders');
+      if (autoReminders && !autoReminders.disabled) body.autoReminders = autoReminders.checked;
       await api('/me', { method: 'PATCH', body });
       await refreshMe();
       toast('Paramètres enregistrés');

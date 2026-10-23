@@ -55,6 +55,14 @@ npm test               # tests de l'API
 Dans *Paramètres*, chaque utilisateur peut télécharger toutes ses données (JSON) et supprimer son compte
 (l'abonnement Stripe est alors résilié). L'inscription demande l'acceptation des CGV et de la politique de confidentialité.
 
+## Relances automatiques des factures
+
+Les artisans peuvent activer, dans *Paramètres*, la relance automatique par email de leurs clients pour les factures
+impayées : 3, 10 puis 20 jours après l'échéance (ton de plus en plus ferme, au moins 5 jours entre deux relances).
+Un bouton **Relancer** permet aussi d'envoyer une relance immédiate. Chaque email contient un lien privé vers la facture
+(`/facture/<jeton>`) et part au nom de l'artisan, qui reçoit directement les réponses (`Reply-To`).
+Envoi via l'API Brevo : renseignez `BREVO_API_KEY` et `MAIL_FROM` (adresse validée dans Brevo).
+
 ## Statistiques
 
 Les comptes dont l'email figure dans `ADMIN_EMAILS` voient une page **Statistiques** dans leur espace :

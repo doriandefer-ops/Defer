@@ -6,6 +6,8 @@ const svc = require('./services');
 const ai = require('./ai');
 const billing = require('./billing');
 const stats = require('./stats');
+const reminders = require('./reminders');
+const mailer = require('./mailer');
 const { publicPlans, getPlan } = require('./plans');
 
 const app = express();
@@ -48,6 +50,10 @@ const id = (req) => Number(req.params.id);
 
 // ---------- Public ----------
 app.get('/api/plans', (_req, res) => res.json({ plans: publicPlans(), demoBilling: billing.isDemo() && billing.demoAllowed() }));
+
+// Facture consultable par le client final via un lien non devinable (envoyé dans les relances)
+app.get('/api/public/factures/:token', (req, res) => res.json(reminders.getPublicDocument(req.params.token)));
+app.get('/facture/:token', (req, res) => res.redirect(`/document?t=${encodeURIComponent(req.params.token)}`));
 
 // ---------- Authentification ----------
 app.post('/api/auth/register', auth.rateLimit(10, 15 * 60 * 1000), (req, res) => {
@@ -94,6 +100,7 @@ api.get('/me', (req, res) => {
     plan: publicPlans().find((p) => p.id === getPlan(req.user.plan).id),
     usage: svc.getUsage(req.user),
     demoBilling: billing.isDemo() && billing.demoAllowed(),
+    mailConfigured: mailer.isConfigured(),
   });
 });
 
@@ -108,6 +115,7 @@ api.patch('/me', (req, res) => {
     phone: clip(b.phone, 30),
     vat_rate: b.vatRate === undefined ? undefined : Number(b.vatRate),
     show_branding: b.showBranding === undefined ? undefined : b.showBranding ? 1 : 0,
+    auto_reminders: b.autoReminders === undefined ? undefined : b.autoReminders ? 1 : 0,
   };
   if (fields.vat_rate !== undefined && !(fields.vat_rate >= 0 && fields.vat_rate <= 100)) {
     throw new svc.AppError('Taux de TVA invalide.');
@@ -186,7 +194,12 @@ api.delete('/clients/:id', (req, res) => {
 });
 
 // ---------- Devis & factures ----------
-api.get('/documents', (req, res) => res.json({ documents: svc.listDocuments(req.user, { type: req.query.type }) }));
+api.get('/documents', (req, res) =>
+  res.json({
+    documents: svc.listDocuments(req.user, { type: req.query.type }).map((d) => ({ ...d, reminders: reminders.remindersFor(d.id) })),
+  }),
+);
+api.post('/documents/:id/relancer', wrap(async (req, res) => res.json(await reminders.remindNow(req.user, id(req)))));
 api.get('/documents/:id', (req, res) =>
   res.json({ document: svc.getDocument(req.user, id(req)), issuer: auth.publicUser(req.user) }),
 );
@@ -233,6 +246,8 @@ if (require.main === module) {
     if (billing.isDemo() && !billing.demoAllowed()) console.log('Paiements : Stripe non configuré, les abonnements payants sont désactivés.');
     billing.ensureStripeSetup().catch(() => {});
     stats.purgeOldViews();
+    reminders.startScheduler();
+    if (!mailer.isConfigured()) console.log('Emails : BREVO_API_KEY / MAIL_FROM non définis, les relances par email sont désactivées.');
     if (!process.env.ANTHROPIC_API_KEY) console.log("Assistant IA : ANTHROPIC_API_KEY non défini, l'assistant sera indisponible.");
   });
 }

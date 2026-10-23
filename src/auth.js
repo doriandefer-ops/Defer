@@ -100,6 +100,7 @@ function publicUser(u) {
     phone: u.phone,
     vatRate: u.vat_rate,
     showBranding: u.show_branding !== 0,
+    autoReminders: u.auto_reminders === 1,
     isAdmin: isAdmin(u),
   };
 }
