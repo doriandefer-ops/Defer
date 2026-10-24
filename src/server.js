@@ -221,6 +221,7 @@ api.delete('/documents/:id', (req, res) => {
 
 // ---------- Abonnement ----------
 api.post('/billing/checkout', wrap(async (req, res) => res.json(await billing.startCheckout(req.user, req.body.plan))));
+api.post('/billing/redeem', auth.rateLimit(10, 15 * 60 * 1000), wrap(async (req, res) => res.json(await billing.redeemLifetimeCode(req.user, req.body.code))));
 api.post('/billing/portal', wrap(async (req, res) => res.json(await billing.openPortal(req.user))));
 
 // ---------- Administration ----------

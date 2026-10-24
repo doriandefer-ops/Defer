@@ -124,8 +124,25 @@ function setPlan(userId, plan, extra = {}) {
   ).run(plan, accountType, extra.customerId ?? null, extra.subscriptionId ?? null, userId);
 }
 
+// Codes « Artisan gratuit à vie » : définis dans la variable LIFETIME_CODES (séparés par des virgules),
+// jamais dans le code source. Chaque code ne peut être utilisé qu'une seule fois.
+const lifetimeCodes = () =>
+  (process.env.LIFETIME_CODES || '').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+
+async function redeemLifetimeCode(user, raw) {
+  const code = String(raw || '').trim().toUpperCase();
+  if (!code || !lifetimeCodes().includes(code)) throw new AppError('Ce code n’est pas valable.');
+  const used = db.prepare('SELECT user_id FROM lifetime_redemptions WHERE code = ?').get(code);
+  if (used && used.user_id !== user.id) throw new AppError('Ce code a déjà été utilisé.');
+  db.prepare('INSERT OR IGNORE INTO lifetime_redemptions (code, user_id) VALUES (?, ?)').run(code, user.id);
+  await cancelSubscription(user); // plus rien à payer : on arrête un éventuel abonnement en cours
+  db.prepare("UPDATE users SET plan = 'artisan', account_type = 'artisan', lifetime_plan = 1, stripe_subscription_id = NULL WHERE id = ?").run(user.id);
+  return { plan: 'artisan', lifetime: true };
+}
+
 async function startCheckout(user, plan) {
   if (!PLANS[plan] || plan === 'gratuit') throw new AppError('Offre inconnue.');
+  if (user.lifetime_plan) throw new AppError('Vous avez déjà l’offre Artisan à vie : rien à payer.');
   if (isDemo()) {
     if (!demoAllowed()) throw new AppError('Le paiement en ligne n’est pas encore disponible. Réessayez bientôt.', 503);
     setPlan(user.id, plan);
@@ -153,6 +170,7 @@ async function startCheckout(user, plan) {
 }
 
 async function openPortal(user) {
+  if (user.lifetime_plan) throw new AppError('Votre offre Artisan est gratuite à vie : aucun abonnement à gérer.');
   if (isDemo()) {
     setPlan(user.id, 'gratuit');
     return { demo: true };
@@ -195,17 +213,17 @@ function handleWebhook(req, res) {
       break;
     }
     case 'customer.subscription.updated': {
-      const user = db.prepare('SELECT id FROM users WHERE stripe_customer_id = ?').get(obj.customer);
+      const user = db.prepare('SELECT id, lifetime_plan FROM users WHERE stripe_customer_id = ?').get(obj.customer);
       const priceId = obj.items?.data?.[0]?.price?.id;
       const plan = Object.keys(PRICE_IDS).find((p) => PRICE_IDS[p] === priceId);
-      if (user && plan && ['active', 'trialing'].includes(obj.status)) {
+      if (user && plan && ['active', 'trialing'].includes(obj.status) && !user.lifetime_plan) {
         setPlan(user.id, plan, { subscriptionId: obj.id });
       }
       break;
     }
     case 'customer.subscription.deleted': {
-      const user = db.prepare('SELECT id FROM users WHERE stripe_customer_id = ?').get(obj.customer);
-      if (user) setPlan(user.id, 'gratuit');
+      const user = db.prepare('SELECT id, lifetime_plan FROM users WHERE stripe_customer_id = ?').get(obj.customer);
+      if (user && !user.lifetime_plan) setPlan(user.id, 'gratuit');
       break;
     }
     default:
@@ -214,4 +232,4 @@ function handleWebhook(req, res) {
   res.json({ received: true });
 }
 
-module.exports = { isDemo, demoAllowed, ensureStripeSetup, startCheckout, openPortal, cancelSubscription, handleWebhook };
+module.exports = { redeemLifetimeCode, isDemo, demoAllowed, ensureStripeSetup, startCheckout, openPortal, cancelSubscription, handleWebhook };

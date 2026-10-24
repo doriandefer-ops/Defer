@@ -232,3 +232,27 @@ test('envoi au client : PDF du document et message mémorisé', async () => {
   const r2 = await fetch(`${base}/documents/${q.body.document.id}/pdf`, { headers: { cookie: o.headers.get('set-cookie').split(';')[0] } });
   assert.equal(r2.status, 404);
 });
+
+test('code « Artisan gratuit à vie » : valable une seule fois', async () => {
+  process.env.LIFETIME_CODES = 'MDIA-TEST-1234, AUTRE-CODE';
+  try {
+    const a = agent();
+    await a('/auth/register', { method: 'POST', body: { email: 'vie@test.fr', password: 'motdepasse', name: 'Pierre' } });
+    assert.equal((await a('/billing/redeem', { method: 'POST', body: { code: 'FAUX' } })).status, 400);
+    assert.equal((await a('/billing/redeem', { method: 'POST', body: { code: ' mdia-test-1234 ' } })).status, 200);
+    const me = (await a('/me')).body;
+    assert.equal(me.plan.id, 'artisan');
+    assert.equal(me.user.lifetime, true);
+    assert.equal((await a('/documents')).status, 200);
+    assert.equal((await a('/billing/checkout', { method: 'POST', body: { plan: 'foyer' } })).status, 400);
+
+    const b = agent();
+    await b('/auth/register', { method: 'POST', body: { email: 'vie2@test.fr', password: 'motdepasse', name: 'Paul' } });
+    const again = await b('/billing/redeem', { method: 'POST', body: { code: 'MDIA-TEST-1234' } });
+    assert.equal(again.status, 400);
+    assert.match(again.body.error, /déjà été utilisé/);
+    assert.equal((await b('/me')).body.plan.id, 'gratuit');
+  } finally {
+    delete process.env.LIFETIME_CODES;
+  }
+});

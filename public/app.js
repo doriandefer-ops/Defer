@@ -714,7 +714,24 @@ async function renderBilling(query) {
           : `<button class="btn btn-primary btn-block" data-plan="${p.id}">Choisir ${esc(p.name)}</button>`}
       </div>`).join('')}
     </div>
-    ${current !== 'gratuit' && !demoBilling ? '<p style="margin-top:16px"><button class="btn" data-portal>Gérer mon abonnement et mes factures</button></p>' : ''}`;
+    ${state.me.user.lifetime
+      ? '<div class="card" style="margin-top:16px">Votre offre Artisan est <strong>gratuite à vie</strong>. Vous n’avez rien à payer.</div>'
+      : `${current !== 'gratuit' && !demoBilling ? '<p style="margin-top:16px"><button class="btn" data-portal>Gérer mon abonnement et mes factures</button></p>' : ''}
+    <form class="card" id="redeem" style="margin-top:16px">
+      <label for="code">Vous avez un code d’accès ?</label>
+      <div class="row" style="align-items:center"><input id="code" autocomplete="off" autocapitalize="characters" placeholder="Votre code" required>
+        <button class="btn btn-primary">Valider</button></div>
+    </form>`}`;
+  view.querySelector('#redeem')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    attempt(async () => {
+      await api('/billing/redeem', { method: 'POST', body: { code: view.querySelector('#code').value } });
+      toast('Code validé : offre Artisan gratuite à vie');
+      await refreshMe();
+      router();
+    });
+  });
+  if (state.me.user.lifetime) view.querySelectorAll('[data-plan],[data-portal]').forEach((b) => b.remove());
   view.querySelectorAll('[data-plan]').forEach((b) =>
     b.addEventListener('click', () =>
       attempt(async () => {

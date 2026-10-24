@@ -118,5 +118,15 @@ if (!userColumns.includes('show_branding')) {
 if (!userColumns.includes('share_prefs')) {
   db.exec("ALTER TABLE users ADD COLUMN share_prefs TEXT NOT NULL DEFAULT '{}'");
 }
+// Offre obtenue à vie grâce à un code promo (jamais repassée en gratuit par Stripe)
+if (!userColumns.includes('lifetime_plan')) {
+  db.exec('ALTER TABLE users ADD COLUMN lifetime_plan INTEGER NOT NULL DEFAULT 0');
+}
+// Codes « à vie » déjà utilisés (chaque code ne sert qu'une fois). Les codes eux-mêmes sont dans LIFETIME_CODES.
+db.exec(`CREATE TABLE IF NOT EXISTS lifetime_redemptions (
+  code TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  redeemed_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
 
 module.exports = db;
