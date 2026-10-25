@@ -129,4 +129,56 @@ db.exec(`CREATE TABLE IF NOT EXISTS lifetime_redemptions (
   redeemed_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
+// Devis & factures : acceptation en ligne, acomptes, encaissement (livre des recettes)
+const docColumns = db.prepare('PRAGMA table_info(documents)').all().map((c) => c.name);
+for (const [col, def] of [
+  ['share_token', 'TEXT'], // lien public du devis (acceptation en ligne)
+  ['viewed_at', 'TEXT'],
+  ['accepted_at', 'TEXT'],
+  ['accepted_name', 'TEXT'],
+  ['accepted_ip', 'TEXT'],
+  ['refused_at', 'TEXT'],
+  ['refusal_reason', 'TEXT'],
+  ['kind', "TEXT NOT NULL DEFAULT 'standard'"], // standard | acompte
+  ['source_id', 'INTEGER'], // devis d'origine (facture d'acompte ou facture finale)
+  ['paid_at', 'TEXT'],
+  ['payment_method', 'TEXT'],
+]) {
+  if (!docColumns.includes(col)) db.exec(`ALTER TABLE documents ADD COLUMN ${col} ${def}`);
+}
+db.exec(`
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_token ON documents(share_token);
+
+-- Tarifs habituels de l'artisan, repris par l'assistant dans les devis
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  unit TEXT NOT NULL DEFAULT 'u',
+  unit_price REAL NOT NULL,
+  vat_rate REAL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_user ON catalog_items(user_id);
+
+-- Abonnements du foyer (box, assurance, salle de sport…)
+CREATE TABLE IF NOT EXISTS abonnements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'autre',
+  amount REAL,
+  frequency TEXT NOT NULL DEFAULT 'mensuelle',
+  next_renewal TEXT,
+  commitment_end TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_abonnements_user ON abonnements(user_id);
+`);
+// Périodicité de déclaration URSSAF du micro-entrepreneur
+if (!userColumns.includes('urssaf_period')) {
+  db.exec("ALTER TABLE users ADD COLUMN urssaf_period TEXT NOT NULL DEFAULT 'trimestrielle'");
+}
+
 module.exports = db;

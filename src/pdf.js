@@ -11,19 +11,26 @@ const eur = (n) => clean(Number(n).toLocaleString('fr-FR', { style: 'currency', 
 const frDate = (d) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '');
 const qty = (n) => clean(Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 }));
 
+const docTitle = (doc) => (doc.type === 'devis' ? 'Devis' : doc.kind === 'acompte' ? 'Facture d’acompte' : 'Facture');
+const frDateTime = (s) => {
+  const d = new Date(`${s.replace(' ', 'T')}Z`);
+  return `${d.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })} à ${d.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })}`;
+};
+
 function fileName(doc, issuer) {
   const who = (issuer.company_name || issuer.name || '').replace(/[\\/:*?"<>|]/g, '').trim();
-  return `${doc.type === 'devis' ? 'Devis' : 'Facture'} ${doc.number}${who ? ` - ${who}` : ''}.pdf`;
+  return `${docTitle(doc).replace('’', "'")} ${doc.number}${who ? ` - ${who}` : ''}.pdf`;
 }
 
-function renderPdf(doc, issuer) {
+// link : adresse de la page où le client peut accepter le devis en ligne.
+function renderPdf(doc, issuer, { link } = {}) {
   const isQuote = doc.type === 'devis';
-  const pdf = new PDFDocument({ size: 'A4', margin: 50, info: { Title: `${isQuote ? 'Devis' : 'Facture'} ${doc.number}` } });
+  const pdf = new PDFDocument({ size: 'A4', margin: 50, info: { Title: `${docTitle(doc)} ${doc.number}` } });
   const W = pdf.page.width - 100; // largeur utile
   const L = 50;
 
   // En-tête : titre à gauche, émetteur à droite
-  pdf.font('Helvetica-Bold').fontSize(24).fillColor('#1d1d1b').text(isQuote ? 'DEVIS' : 'FACTURE', L, 50);
+  pdf.font('Helvetica-Bold').fontSize(24).fillColor('#1d1d1b').text(docTitle(doc).toUpperCase(), L, 50);
   pdf.font('Helvetica').fontSize(10).fillColor(MUTED);
   pdf.text(`N° ${doc.number}`).text(`Date : ${frDate(doc.issue_date)}`);
   if (doc.due_date) pdf.text(`${isQuote ? 'Valable jusqu’au' : 'Échéance de paiement'} : ${frDate(doc.due_date)}`);
@@ -95,8 +102,21 @@ function renderPdf(doc, issuer) {
   // Notes, mentions
   pdf.font('Helvetica').fontSize(10).fillColor('#1d1d1b');
   if (doc.notes) pdf.text(clean(doc.notes), L, y + 10, { width: W });
-  if (isQuote) pdf.moveDown(1.5).text('Bon pour accord — date et signature du client :', L, undefined, { width: W });
-  pdf.moveDown(isQuote ? 4 : 2).fontSize(8).fillColor(MUTED);
+  let signed = false;
+  if (isQuote && doc.accepted_at) {
+    signed = true;
+    pdf.moveDown(1.5).font('Helvetica-Bold').fillColor(GREEN)
+      .text(`Devis accepté en ligne le ${frDateTime(doc.accepted_at)} par ${clean(doc.accepted_name)}.`, L, undefined, { width: W });
+    pdf.font('Helvetica').fillColor('#1d1d1b');
+  } else if (isQuote) {
+    if (link) {
+      pdf.moveDown(1.5).font('Helvetica-Bold').text('Acceptez ce devis en ligne, en un clic :', L, undefined, { width: W });
+      pdf.font('Helvetica').fillColor(GREEN).text(link, { width: W, link, underline: true });
+      pdf.fillColor('#1d1d1b').moveDown(0.8).text('Ou renvoyez-le signé :', { width: W });
+    }
+    pdf.moveDown(link ? 0.3 : 1.5).text('Bon pour accord — date et signature du client :', L, undefined, { width: W });
+  }
+  pdf.moveDown(isQuote && !signed ? 4 : 2).fontSize(8).fillColor(MUTED);
   pdf.text(
     isQuote
       ? 'Devis gratuit. Les prix sont exprimés en euros.'

@@ -109,6 +109,7 @@ function publicUser(u) {
     })(),
     isAdmin: isAdmin(u),
     lifetime: u.lifetime_plan === 1,
+    urssafPeriod: u.urssaf_period,
   };
 }
 

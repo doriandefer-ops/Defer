@@ -145,7 +145,7 @@ section.block { padding: 56px 0; }
 .mobile-bar { display: none; }
 
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: fixed; inset: 0 auto 0 0; width: 260px; z-index: 30; transform: translateX(-100%); transition: transform 0.2s; }
   .sidebar.open { transform: none; box-shadow: var(--shadow); }
   .mobile-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 20; }
@@ -221,3 +221,25 @@ td.actions { text-align: right; white-space: nowrap; }
 .share-text { display: block; white-space: pre-line; color: var(--muted); font-size: .875rem; margin-top: 4px; }
 .check { display: flex; gap: 8px; align-items: center; font-weight: 400; font-size: .9rem; }
 .check input { width: auto; }
+
+/* Nouveautés : photo, dictée, acomptes, URSSAF, abonnements */
+.header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn-icon { padding: 0.5em 0.75em; font-size: 1.15rem; line-height: 1; flex: none; }
+.btn-icon.recording { background: var(--warn-soft); border-color: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+.chat-form { align-items: flex-end; }
+.chat-form textarea { flex: 1; min-width: 0; }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.card.highlight { border: 2px solid var(--accent); }
+.card.highlight .big { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+tr.row-highlight td { background: var(--accent-soft); }
+@media (max-width: 640px) {
+  .chat-form { flex-wrap: wrap; }
+  .chat-form textarea { flex-basis: 100%; order: -1; }
+  .chat-form #send { flex: 1; }
+}
+/* Un tableau large défile dans sa carte au lieu d'élargir toute la page */
+.stack > *, .two-col > *, .stats > * { min-width: 0; }
+.stack, .two-col { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

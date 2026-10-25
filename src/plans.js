@@ -28,14 +28,14 @@ const PLANS = {
       clients: 0,
       documents: 0,
     },
-    features: ['assistant', 'echeances', 'budget', 'courriers'],
+    features: ['assistant', 'echeances', 'budget', 'courriers', 'abonnements'],
   },
   artisan: {
     id: 'artisan',
     name: 'Artisan',
     price: 29.99,
     priceLabel: '29,99 € / mois',
-    tagline: 'Devis, factures, clients et relances',
+    tagline: 'Devis, factures, clients et déclarations',
     limits: {
       aiMessagesPerMonth: 2000,
       echeances: Infinity,
@@ -43,7 +43,7 @@ const PLANS = {
       clients: Infinity,
       documents: Infinity,
     },
-    features: ['assistant', 'echeances', 'budget', 'courriers', 'clients', 'documents'],
+    features: ['assistant', 'echeances', 'budget', 'courriers', 'abonnements', 'clients', 'documents'],
   },
 };
 

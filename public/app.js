@@ -7,6 +7,7 @@ const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const eur = (n) => (n == null ? '—' : Number(n).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }));
 const frDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR') : '—');
+const frDateTime = (s) => new Date(`${s.replace(' ', 'T')}Z`).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const has = (feature) => state.me?.plan.features.includes(feature);
 
@@ -88,7 +89,7 @@ function upsell(feature) {
     <h3>${artisan ? 'Réservé à l’offre Artisan' : 'Disponible avec les offres Foyer et Artisan'}</h3>
     <p class="muted">${artisan
       ? 'Créez vos devis et factures en une phrase, gérez vos clients et suivez vos impayés pour 29,99 € / mois.'
-      : 'Suivez votre budget, sans limite d’échéances, à partir de 4,99 € / mois.'}</p>
+      : 'Suivez votre budget et vos abonnements, sans limite d’échéances, à partir de 4,99 € / mois.'}</p>
     <a class="btn btn-primary" href="#abonnement">Voir les offres</a>
   </div>`;
 }
@@ -99,8 +100,11 @@ const ROUTES = [
   { id: 'assistant', label: 'Assistant IA', icon: '💬', render: renderAssistant },
   { id: 'echeances', label: 'Échéances', icon: '⏰', render: renderEcheances, feature: 'echeances' },
   { id: 'budget', label: 'Budget', icon: '💶', render: renderBudget, feature: 'budget' },
+  { id: 'abonnements', label: 'Abonnements', icon: '🔁', render: renderAbonnements, feature: 'abonnements' },
   { id: 'clients', label: 'Clients', icon: '👥', render: renderClients, feature: 'clients', artisanOnly: true },
   { id: 'documents', label: 'Devis & factures', icon: '🧾', render: renderDocuments, feature: 'documents', artisanOnly: true },
+  { id: 'tarifs', label: 'Mes prix', icon: '🏷️', render: renderTarifs, feature: 'documents', artisanOnly: true },
+  { id: 'urssaf', label: 'Déclaration URSSAF', icon: '📤', render: renderUrssaf, feature: 'documents', artisanOnly: true },
   { id: 'abonnement', label: 'Abonnement', icon: '⭐', render: renderBilling },
   { id: 'statistiques', label: 'Statistiques', icon: '📊', render: renderStats, adminOnly: true },
   { id: 'parametres', label: 'Paramètres', icon: '⚙️', render: renderSettings },
@@ -155,6 +159,7 @@ async function renderDashboard() {
   const stats = [];
   if (d.facturation) {
     stats.push(['Chiffre d’affaires encaissé (année, HT)', eur(d.facturation.chiffreAffairesAnnuel)]);
+    if (d.urssaf) stats.push([`URSSAF : à déclarer avant le ${frDate(d.urssaf.deadline)}`, eur(d.urssaf.total_ht)]);
     stats.push(['Factures impayées', `${d.facturation.impayees} · ${eur(d.facturation.montantImpaye)}`]);
     stats.push(['Devis en attente de réponse', d.facturation.devisEnAttente]);
   }
@@ -163,7 +168,12 @@ async function renderDashboard() {
 
   view.innerHTML = `
     <div class="main-header"><h1>Bonjour ${esc(u.name.split(' ')[0])} 👋</h1>
-      <a class="btn btn-primary" href="#assistant">💬 Demander à l’assistant</a></div>
+      <div class="header-actions"><button class="btn" data-photo="courrier">📷 Photo d’un courrier</button>
+      <a class="btn btn-primary" href="#assistant">💬 Demander à l’assistant</a></div></div>
+    ${d.reponsesDevis?.length ? `<div class="card" style="margin-bottom:16px"><h2>Réponses de vos clients</h2>
+      <ul class="plain">${d.reponsesDevis.map((q) => `<li>${q.status === 'accepte' && q.accepted_at
+        ? `<span class="badge badge-ok">Accepté</span> ${esc(q.client || 'Un client')} a accepté le devis <a href="/document?id=${q.id}" target="_blank">${esc(q.number)}</a> (${eur(q.total_ttc)}) le ${frDateTime(q.accepted_at)}`
+        : `<span class="badge badge-warn">Refusé</span> ${esc(q.client || 'Un client')} a refusé le devis <a href="/document?id=${q.id}" target="_blank">${esc(q.number)}</a>${q.refusal_reason ? ` : « ${esc(q.refusal_reason)} »` : ''}`}</li>`).join('')}</ul></div>` : ''}
     <div class="stats">${stats.map(([l, v]) => `<div class="card stat"><div class="label">${l}</div><div class="value">${esc(v)}</div></div>`).join('')}</div>
     <div class="two-col">
       <div class="card">
@@ -172,17 +182,91 @@ async function renderDashboard() {
           <tr><td>${esc(e.title)}</td><td>${e.due_date < todayIso() ? `<span class="badge badge-warn">En retard · ${frDate(e.due_date)}</span>` : frDate(e.due_date)}</td><td class="num">${eur(e.amount)}</td></tr>`).join('')}
           </tbody></table></div>` : '<p class="empty">Aucune échéance à venir. 🎉</p>'}
         <a href="#echeances" class="small">Toutes les échéances →</a>
+        ${d.renouvellements?.length ? `<h2 style="margin-top:20px">Abonnements renouvelés bientôt</h2>
+          <div class="table-wrap"><table><tbody>${d.renouvellements.map((a) => `
+          <tr><td>${esc(a.name)}</td><td>${frDate(a.next_renewal)}</td><td class="num">${eur(a.amount)}</td></tr>`).join('')}</tbody></table></div>
+          <a href="#abonnements" class="small">Tous les abonnements →</a>` : ''}
       </div>
       <div class="card">
         <h2>Que puis-je faire pour vous ?</h2>
         <p class="muted">Quelques exemples à demander à l’assistant :</p>
         <ul>
           ${u.accountType === 'artisan'
-            ? '<li>« Fais une facture pour M. Durand : remplacement chauffe-eau 850 € HT »</li><li>« Quelles factures ne sont pas encore payées ? »</li><li>« Rédige une relance polie pour une facture en retard »</li>'
-            : '<li>« Rappelle-moi de renouveler l’assurance auto le 3 mars »</li><li>« J’ai dépensé 86 € de courses aujourd’hui »</li><li>« Écris une lettre de résiliation pour ma box internet »</li>'}
+            ? '<li>« Fais une facture pour M. Durand : remplacement chauffe-eau 850 € HT »</li><li>« Fais une facture d’acompte de 30 % sur le dernier devis »</li><li>« Combien je dois déclarer à l’URSSAF ce trimestre ? »</li><li>Envoyez la photo d’un ticket de chez votre fournisseur : la dépense est rangée toute seule</li>'
+            : '<li>« Rappelle-moi de renouveler l’assurance auto le 3 mars »</li><li>« J’ai dépensé 86 € de courses aujourd’hui »</li><li>« Écris une lettre de résiliation pour ma box internet »</li><li>Envoyez la photo d’un courrier des impôts ou de la CAF : l’assistant vous l’explique</li>'}
         </ul>
       </div>
     </div>`;
+  wirePhotoButtons();
+}
+
+// ---------- Photos envoyées à l'assistant (tickets, courriers) ----------
+const PHOTO_PROMPTS = {
+  ticket: 'Voici la photo d’un ticket de caisse ou d’une facture fournisseur : enregistre la dépense.',
+  courrier: 'Voici la photo d’un courrier : explique-moi simplement ce qu’il dit et ce que je dois faire.',
+};
+
+// Ouvre le choix de fichier (sur téléphone : appareil photo ou galerie). Doit être appelé pendant un clic.
+function pickFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    input.addEventListener('change', () => resolve(input.files[0] || null));
+    input.addEventListener('cancel', () => resolve(null));
+    input.click();
+  });
+}
+
+const toBase64 = (blob) =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1]);
+    r.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+    r.readAsDataURL(blob);
+  });
+
+// Les photos sont réduites (1600 px max) avant l'envoi : plus rapide sur mobile, et bien assez pour lire un ticket.
+async function readAttachment(file) {
+  if (file.type === 'application/pdf') {
+    if (file.size > 8 * 1024 * 1024) throw new Error('PDF trop lourd (8 Mo maximum).');
+    return { media_type: 'application/pdf', data: await toBase64(file) };
+  }
+  if (!file.type.startsWith('image/')) throw new Error('Choisissez une photo ou un PDF.');
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Format de photo non pris en charge. Essayez une capture d’écran ou un PDF.'));
+      i.src = url;
+    });
+    const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    return { media_type: 'image/jpeg', data: await toBase64(blob) };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Envoie un message (et éventuellement une photo) à l'assistant, en ouvrant sa page.
+function askAssistant(text, file = null) {
+  state.pending = { text, file };
+  if (location.hash.startsWith('#assistant')) router();
+  else location.hash = 'assistant';
+}
+
+function wirePhotoButtons() {
+  view.querySelectorAll('[data-photo]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const file = await pickFile();
+      if (file) askAssistant(PHOTO_PROMPTS[b.dataset.photo], file);
+    }),
+  );
 }
 
 // ---------- Assistant ----------
@@ -190,8 +274,8 @@ const SUGGESTIONS = {
   artisan: [
     'Crée un devis pour Mme Martin : pose de 12 m² de carrelage à 45 €/m²',
     'Quelles factures sont impayées ?',
-    'Ajoute l’échéance URSSAF du trimestre au 31 du mois',
-    'Rédige une relance pour une facture en retard de 15 jours',
+    'Combien je dois déclarer à l’URSSAF ce trimestre ?',
+    'Retiens que mon heure de main-d’œuvre est à 45 € HT',
   ],
   foyer: [
     'Rappelle-moi de payer la taxe foncière le 15 octobre, 1 240 €',
@@ -206,6 +290,9 @@ const ACTION_LABELS = {
   ajouter_operation: 'opération enregistrée',
   ajouter_client: 'client ajouté',
   creer_document: 'document créé',
+  creer_facture_acompte: 'facture d’acompte créée',
+  enregistrer_tarif: 'tarif enregistré',
+  ajouter_abonnement: 'abonnement ajouté',
   changer_statut_document: 'statut modifié',
   transformer_devis_en_facture: 'facture créée',
 };
@@ -221,16 +308,19 @@ async function renderAssistant() {
       <div class="chat-log" id="log"></div>
       <div class="suggestions" id="sugg">${sugg.map((s) => `<button class="btn btn-small" type="button">${esc(s)}</button>`).join('')}</div>
       <form class="chat-form" id="chat-form">
-        <textarea id="input" rows="1" placeholder="Demandez quelque chose… (Entrée pour envoyer)" aria-label="Message"></textarea>
+        <button class="btn btn-icon" type="button" id="photo" title="Envoyer une photo (ticket, courrier…)" aria-label="Envoyer une photo">📷</button>
+        <textarea id="input" rows="1" placeholder="Demandez quelque chose…" aria-label="Message"></textarea>
+        <button class="btn btn-icon hidden" type="button" id="mic" title="Dicter mon message" aria-label="Dicter mon message">🎤</button>
         <button class="btn btn-primary" type="submit" id="send">Envoyer</button>
       </form>
+      <div class="muted small hidden" id="listening" style="margin-top:6px">🔴 Je vous écoute… parlez normalement, appuyez sur 🎤 pour arrêter.</div>
     </div>`;
   const log = document.getElementById('log');
   const input = document.getElementById('input');
   const addBubble = (role, content, actions = []) => {
     const div = document.createElement('div');
     div.className = `bubble ${role}`;
-    div.innerHTML = role === 'assistant' ? md(content) : esc(content);
+    div.innerHTML = role === 'assistant' ? md(content) : esc(content).replace(/^\[(Photo jointe|PDF joint)\]/, '<span class="badge">📎 $1</span>');
     log.appendChild(div);
     const done = actions.filter((a) => a.ok && ACTION_LABELS[a.tool]);
     if (done.length) {
@@ -248,16 +338,18 @@ async function renderAssistant() {
   messages.forEach((m) => addBubble(m.role, m.content));
   document.getElementById('sugg').classList.toggle('hidden', messages.length > 0);
 
-  const send = async (text) => {
-    if (!text.trim()) return;
+  const send = async (text, file = null) => {
+    if (!text.trim() && !file) return;
+    stopDictation();
     document.getElementById('sugg').classList.add('hidden');
-    addBubble('user', text);
+    addBubble('user', file ? `[${file.type === 'application/pdf' ? 'PDF joint' : 'Photo jointe'}] ${text}` : text);
     input.value = '';
     const typing = addBubble('assistant', '');
-    typing.innerHTML = '<span class="typing">L’assistant réfléchit…</span>';
+    typing.innerHTML = `<span class="typing">${file ? 'L’assistant lit votre document…' : 'L’assistant réfléchit…'}</span>`;
     document.getElementById('send').disabled = true;
     try {
-      const res = await api('/chat', { method: 'POST', body: { message: text } });
+      const attachment = file ? await readAttachment(file) : undefined;
+      const res = await api('/chat', { method: 'POST', body: { message: text, attachment } });
       typing.remove();
       addBubble('assistant', res.reply, res.actions);
       document.getElementById('usage').textContent = `${res.usage.used} / ${res.usage.limit} messages ce mois`;
@@ -281,6 +373,44 @@ async function renderAssistant() {
     }
   });
   document.querySelectorAll('#sugg button').forEach((b) => b.addEventListener('click', () => send(b.textContent)));
+  document.getElementById('photo').addEventListener('click', async () => {
+    const file = await pickFile();
+    if (file) send(input.value || (state.me.user.accountType === 'artisan' ? PHOTO_PROMPTS.ticket : PHOTO_PROMPTS.courrier), file);
+  });
+
+  // Dictée vocale (reconnaissance vocale du navigateur, en français)
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = document.getElementById('mic');
+  let rec = null;
+  function stopDictation() {
+    if (rec) rec.stop();
+  }
+  if (Recognition) {
+    mic.classList.remove('hidden');
+    mic.addEventListener('click', () => {
+      if (rec) return rec.stop();
+      const before = input.value ? `${input.value.trim()} ` : '';
+      rec = new Recognition();
+      rec.lang = 'fr-FR';
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.onresult = (e) => {
+        input.value = before + [...e.results].map((r) => r[0].transcript).join(' ').replace(/\s+/g, ' ').trimStart();
+      };
+      rec.onerror = (e) => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Autorisez le micro pour ce site dans les réglages du navigateur.');
+      };
+      rec.onend = () => {
+        rec = null;
+        mic.classList.remove('recording');
+        document.getElementById('listening').classList.add('hidden');
+        input.focus();
+      };
+      rec.start();
+      mic.classList.add('recording');
+      document.getElementById('listening').classList.remove('hidden');
+    });
+  }
   document.getElementById('clear').addEventListener('click', () =>
     attempt(async () => {
       if (!confirm('Effacer tout l’historique de conversation ?')) return;
@@ -289,6 +419,11 @@ async function renderAssistant() {
     }),
   );
   input.focus();
+  if (state.pending) {
+    const { text, file } = state.pending;
+    state.pending = null;
+    send(text, file);
+  }
 }
 
 // ---------- Échéances ----------
@@ -305,7 +440,8 @@ async function renderEcheances() {
   const todo = echeances.filter((e) => e.status === 'a_faire');
   const done = echeances.filter((e) => e.status === 'faite').slice(0, 20);
   view.innerHTML = `
-    <div class="main-header"><h1>Échéances</h1>${limit ? `<span class="muted small">${echeances.length} / ${limit} avec l’offre Gratuit</span>` : ''}</div>
+    <div class="main-header"><h1>Échéances</h1><div class="header-actions">${limit ? `<span class="muted small">${echeances.length} / ${limit} avec l’offre Gratuit</span>` : ''}
+      <button class="btn btn-small" data-photo="courrier">📷 Photo d’un courrier</button></div></div>
     <div class="stack">
       <form class="card" id="form">
         <h2>Ajouter une échéance</h2>
@@ -329,6 +465,7 @@ async function renderEcheances() {
       router();
     }),
   );
+  wirePhotoButtons();
   view.querySelectorAll('[data-done]').forEach((b) =>
     b.addEventListener('click', () =>
       attempt(async () => {
@@ -373,7 +510,9 @@ async function renderBudget(query) {
   const month = query.get('mois') || todayIso().slice(0, 7);
   const { transactions, summary } = await api(`/transactions?month=${month}`);
   view.innerHTML = `
-    <div class="main-header"><h1>Budget</h1><input type="month" id="month" value="${month}" style="width:auto"></div>
+    <div class="main-header"><h1>Budget</h1><div class="header-actions">
+      <button class="btn btn-small" data-photo="ticket">📷 Photo d’un ticket</button>
+      <input type="month" id="month" value="${month}" style="width:auto"></div></div>
     <div class="stats">
       <div class="card stat"><div class="label">Revenus</div><div class="value">${eur(summary.revenus)}</div></div>
       <div class="card stat"><div class="label">Dépenses</div><div class="value">${eur(summary.depenses)}</div></div>
@@ -408,6 +547,7 @@ async function renderBudget(query) {
       </tbody></table></div>` : '<p class="empty">Aucune opération.</p>'}
     </div>`;
   document.getElementById('month').addEventListener('change', (e) => (location.hash = `budget?mois=${e.target.value}`));
+  wirePhotoButtons();
   document.getElementById('form').addEventListener('submit', (e) =>
     attempt(async () => {
       e.preventDefault();
@@ -484,7 +624,7 @@ async function renderDocuments(query) {
     return;
   }
   const type = query.get('type') === 'facture' ? 'facture' : 'devis';
-  const [{ documents }, { clients }] = await Promise.all([api(`/documents?type=${type}`), api('/clients')]);
+  const [{ documents }, { clients }, { items: catalog }] = await Promise.all([api(`/documents?type=${type}`), api('/clients'), api('/catalogue')]);
   const vat = state.me.user.vatRate;
   view.innerHTML = `
     <div class="main-header"><h1>Devis & factures</h1>
@@ -498,6 +638,8 @@ async function renderDocuments(query) {
             <div class="field"><label>… ou nouveau client</label><input name="client_name" placeholder="Nom du client"></div>
             <div class="field"><label>${type === 'devis' ? 'Valable jusqu’au' : 'À payer avant le'}</label><input name="due_date" type="date"></div>
           </div>
+          ${catalog.length ? '<p class="muted small" style="margin:0">Commencez à taper une prestation : vos prix enregistrés dans « Mes prix » se remplissent tout seuls.</p>' : ''}
+          <datalist id="catalog-list">${catalog.map((c) => `<option value="${esc(c.label)}">`).join('')}</datalist>
           <div class="table-wrap"><table class="lines-table"><thead><tr><th>Description</th><th>Qté</th><th>Unité</th><th>Prix HT</th><th>TVA %</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
           <button class="btn btn-small" type="button" id="add-line" style="margin:8px 0 16px">＋ Ajouter une ligne</button>
           <div class="field"><label>Notes / conditions</label><textarea name="notes" rows="2"></textarea></div>
@@ -507,7 +649,7 @@ async function renderDocuments(query) {
       <div class="card">
         ${documents.length ? `<div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Date</th><th>Statut</th><th class="num">Total TTC</th><th></th></tr></thead><tbody>
         ${documents.map((d) => `<tr>
-          <td><a href="/document?id=${d.id}" target="_blank">${esc(d.number)}</a></td>
+          <td><a href="/document?id=${d.id}" target="_blank">${esc(d.number)}</a>${docBadges(d)}</td>
           <td>${esc(d.client?.name || '—')}</td>
           <td>${frDate(d.issue_date)}</td>
           <td><select data-status="${d.id}" style="width:auto">${STATUSES[d.type].map((s) => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}</select></td>
@@ -515,7 +657,8 @@ async function renderDocuments(query) {
           <td class="actions">
             <button class="btn btn-small btn-primary" data-send="${d.id}">Envoyer au client</button>
             <a class="btn btn-small" href="/document?id=${d.id}" target="_blank">PDF</a>
-            ${d.type === 'devis' ? `<button class="btn btn-small" data-convert="${d.id}">→ Facture</button>` : ''}
+            ${d.type === 'devis' ? `<button class="btn btn-small" data-deposit="${d.id}">Acompte</button>
+            <button class="btn btn-small" data-convert="${d.id}">→ Facture</button>` : ''}
             <button class="btn btn-small btn-danger" data-del="${d.id}" aria-label="Supprimer">✕</button>
           </td></tr>`).join('')}
         </tbody></table></div>` : `<p class="empty">${type === 'devis' ? 'Aucun devis' : 'Aucune facture'} pour l’instant.</p>`}
@@ -525,11 +668,18 @@ async function renderDocuments(query) {
   const lines = document.getElementById('lines');
   const addLine = () => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input data-k="description" required></td><td><input data-k="quantity" type="number" step="0.01" value="1"></td>
+    tr.innerHTML = `<td><input data-k="description" list="catalog-list" required></td><td><input data-k="quantity" type="number" step="0.01" value="1"></td>
       <td><input data-k="unit" value="u" style="width:70px"></td><td><input data-k="unit_price" type="number" step="0.01" required></td>
       <td><input data-k="vat_rate" type="number" step="0.1" value="${vat}" style="width:80px"></td>
       <td><button type="button" class="btn btn-small btn-danger" aria-label="Retirer">✕</button></td>`;
     tr.querySelector('button').addEventListener('click', () => tr.remove());
+    tr.querySelector('[data-k=description]').addEventListener('change', (e) => {
+      const item = catalog.find((c) => c.label.toLowerCase() === e.target.value.trim().toLowerCase());
+      if (!item) return;
+      tr.querySelector('[data-k=unit]').value = item.unit;
+      tr.querySelector('[data-k=unit_price]').value = item.unit_price;
+      tr.querySelector('[data-k=vat_rate]').value = item.vat_rate ?? vat;
+    });
     lines.appendChild(tr);
   };
   addLine();
@@ -547,13 +697,29 @@ async function renderDocuments(query) {
       router();
     }),
   );
-  view.querySelectorAll('[data-status]').forEach((s) =>
+  view.querySelectorAll('[data-status]').forEach((s) => {
+    let previous = s.value;
     s.addEventListener('change', () =>
       attempt(async () => {
-        await api(`/documents/${s.dataset.status}/statut`, { method: 'POST', body: { status: s.value } });
+        const body = { status: s.value };
+        if (s.value === 'payee') {
+          const paid = await askPayment();
+          if (!paid) return (s.value = previous);
+          Object.assign(body, paid);
+        }
+        try {
+          await api(`/documents/${s.dataset.status}/statut`, { method: 'POST', body });
+        } catch (err) {
+          s.value = previous;
+          throw err;
+        }
+        previous = s.value;
         toast('Statut mis à jour');
       }),
-    ),
+    );
+  });
+  view.querySelectorAll('[data-deposit]').forEach((b) =>
+    b.addEventListener('click', () => createDepositDialog(documents.find((d) => d.id === Number(b.dataset.deposit)))),
   );
   view.querySelectorAll('[data-send]').forEach((b) =>
     b.addEventListener('click', () => attempt(() => sendToClient(documents.find((d) => d.id === Number(b.dataset.send))))),
@@ -578,10 +744,65 @@ async function renderDocuments(query) {
   );
 }
 
+function docBadges(d) {
+  const b = [];
+  if (d.kind === 'acompte') b.push('<span class="badge">Acompte</span>');
+  if (d.accepted_at) b.push(`<span class="badge badge-ok" title="Le ${frDateTime(d.accepted_at)} par ${esc(d.accepted_name)}">Accepté en ligne</span>`);
+  else if (d.refused_at) b.push('<span class="badge badge-warn">Refusé en ligne</span>');
+  else if (d.viewed_at && d.type === 'devis') b.push('<span class="badge">Vu par le client</span>');
+  if (d.paid_at && d.status === 'payee') b.push(`<span class="badge badge-ok">Payée le ${frDate(d.paid_at)}</span>`);
+  return b.length ? `<div class="badges">${b.join('')}</div>` : '';
+}
+
+const PAYMENT_LABELS = { virement: 'Virement', cheque: 'Chèque', especes: 'Espèces', carte: 'Carte bancaire', autre: 'Autre' };
+
+// Date d'encaissement et mode de paiement : ils servent au livre des recettes et à la déclaration URSSAF.
+function askPayment() {
+  return new Promise((resolve) => {
+    const m = modal(`<h2>Facture payée</h2>
+      <p class="muted small">Ces informations servent à votre déclaration URSSAF et à votre livre des recettes.</p>
+      <div class="row">
+        <div class="field"><label>Payée le</label><input type="date" id="paid-at" value="${todayIso()}" max="${todayIso()}"></div>
+        <div class="field"><label>Mode de paiement</label><select id="paid-method">${Object.entries(PAYMENT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+      </div>
+      <div class="modal-actions"><button class="btn" data-x>Annuler</button><button class="btn btn-primary" data-go>Valider</button></div>`);
+    const done = (v) => {
+      m.close();
+      resolve(v);
+    };
+    m.el.querySelector('[data-x]').onclick = () => done(null);
+    m.el.addEventListener('click', (e) => e.target === m.el && resolve(null));
+    m.el.querySelector('[data-go]').onclick = () =>
+      done({ paid_at: m.el.querySelector('#paid-at').value, payment_method: m.el.querySelector('#paid-method').value });
+  });
+}
+
+function createDepositDialog(d) {
+  const m = modal(`<h2>Facture d’acompte</h2>
+    <p class="muted small">Sur le devis ${esc(d.number)} de ${eur(d.total_ttc)} TTC. L’acompte sera déduit tout seul de la facture finale (bouton « → Facture »).</p>
+    <div class="row">
+      <div class="field"><label>Pourcentage</label><input type="number" id="dep-pct" min="1" max="100" step="1" value="30"></div>
+      <div class="field"><label>Montant TTC</label><input id="dep-amount" disabled></div>
+    </div>
+    <div class="modal-actions"><button class="btn" data-x>Annuler</button><button class="btn btn-primary" data-go>Créer la facture d’acompte</button></div>`);
+  const pct = m.el.querySelector('#dep-pct');
+  const preview = () => (m.el.querySelector('#dep-amount').value = eur((d.total_ttc * Number(pct.value || 0)) / 100));
+  pct.addEventListener('input', preview);
+  preview();
+  m.el.querySelector('[data-x]').onclick = m.close;
+  m.el.querySelector('[data-go]').onclick = () =>
+    attempt(async () => {
+      const { document: inv } = await api(`/documents/${d.id}/acompte`, { method: 'POST', body: { percent: pct.value } });
+      m.close();
+      toast(`Facture d’acompte ${inv.number} créée`);
+      location.hash = 'documents?type=facture';
+    });
+}
+
 // ---------- Envoi d'un devis / d'une facture au client (PDF + message prêt à envoyer) ----------
 const SHARE_STYLES = ['Classique', 'Courte', 'Chaleureuse'];
 
-function shareMessages(d) {
+function shareMessages(d, link) {
   const u = state.me.user;
   const sig = u.companyName || u.name;
   const hello = `Bonjour${d.client?.name ? ` ${d.client.name}` : ''},`;
@@ -589,9 +810,9 @@ function shareMessages(d) {
   const due = d.due_date ? frDate(d.due_date) : null;
   if (d.type === 'devis') {
     return [
-      `${hello}\n\nComme convenu, voici le devis ${d.number} pour les travaux, d'un montant de ${ttc} TTC.${due ? ` Il est valable jusqu'au ${due}.` : ''} N'hésitez pas si vous avez des questions.\n\nCordialement,\n${sig}`,
-      `${hello}\n\nVous trouverez ci-joint votre devis ${d.number} (${ttc} TTC).\n\nBonne journée,\n${sig}`,
-      `${hello}\n\nMerci pour votre confiance. Voici le devis ${d.number} d'un montant de ${ttc} TTC. Si tout vous convient, il vous suffit de me le renvoyer signé avec la mention « Bon pour accord ».\n\nÀ bientôt,\n${sig}`,
+      `${hello}\n\nComme convenu, voici le devis ${d.number} pour les travaux, d'un montant de ${ttc} TTC.${due ? ` Il est valable jusqu'au ${due}.` : ''} N'hésitez pas si vous avez des questions.\n\nVous pouvez l'accepter en ligne ici : ${link}\n\nCordialement,\n${sig}`,
+      `${hello}\n\nVous trouverez ci-joint votre devis ${d.number} (${ttc} TTC). Pour l'accepter : ${link}\n\nBonne journée,\n${sig}`,
+      `${hello}\n\nMerci pour votre confiance. Voici le devis ${d.number} d'un montant de ${ttc} TTC. Si tout vous convient, il vous suffit de l'accepter en ligne ici : ${link}\n\nÀ bientôt,\n${sig}`,
     ];
   }
   return [
@@ -619,7 +840,7 @@ function modal(html) {
 }
 
 // Partage : sur téléphone, menu de partage avec le PDF joint et le message ; sinon, message copié + PDF téléchargé.
-async function deliver(d, message, filePromise) {
+async function deliver(d, message, filePromise, onSent) {
   try {
     await navigator.clipboard?.writeText(message); // copie de secours, si l'appli choisie ne reprend pas le texte
   } catch {
@@ -629,7 +850,7 @@ async function deliver(d, message, filePromise) {
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], text: message, title: file.name.replace(/\.pdf$/, '') });
-      return;
+      return onSent();
     } catch (err) {
       if (err.name === 'AbortError') return; // l'artisan a fermé le menu de partage
       if (err.name === 'NotAllowedError') {
@@ -639,7 +860,7 @@ async function deliver(d, message, filePromise) {
         m.el.querySelector('[data-x]').onclick = m.close;
         m.el.querySelector('[data-go]').onclick = () => {
           m.close();
-          navigator.share({ files: [file], text: message }).catch(() => {});
+          navigator.share({ files: [file], text: message }).then(onSent, () => {});
         };
         return;
       }
@@ -653,18 +874,26 @@ async function deliver(d, message, filePromise) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   toast('Message copié et PDF téléchargé : collez le message et joignez le PDF à votre envoi');
+  return onSent();
 }
 
 async function sendToClient(d) {
-  const messages = shareMessages(d);
-  const saved = state.me.user.shareChoices?.[d.type];
   const filePromise = fetchPdf(d);
   filePromise.catch(() => {});
-  if (Number.isInteger(saved) && messages[saved]) return deliver(d, messages[saved], filePromise);
+  const link = d.type === 'devis' ? (await api(`/documents/${d.id}/lien`, { method: 'POST', body: {} })).url : null;
+  const messages = shareMessages(d, link);
+  // Un brouillon partagé passe à « Envoyé(e) »
+  const onSent = async () => {
+    if (d.status !== 'brouillon') return;
+    await api(`/documents/${d.id}/statut`, { method: 'POST', body: { status: d.type === 'devis' ? 'envoye' : 'envoyee' } }).catch(() => {});
+    router();
+  };
+  const saved = state.me.user.shareChoices?.[d.type];
+  if (Number.isInteger(saved) && messages[saved]) return deliver(d, messages[saved], filePromise, onSent);
 
   const m = modal(`
     <h2>Envoyer ${d.type === 'devis' ? 'le devis' : 'la facture'} ${esc(d.number)}</h2>
-    <p class="muted small">Choisissez un message. Il sera envoyé avec le PDF ${d.type === 'devis' ? 'du devis' : 'de la facture'} (WhatsApp, SMS, email…).</p>
+    <p class="muted small">Choisissez un message. Il sera envoyé avec le PDF ${d.type === 'devis' ? 'du devis' : 'de la facture'} (WhatsApp, SMS, email…).${d.type === 'devis' ? ' Votre client pourra accepter le devis en un clic grâce au lien.' : ''}</p>
     <div class="share-options">${messages.map((msg, i) => `
       <label class="share-option"><input type="radio" name="msg" value="${i}" ${i === 0 ? 'checked' : ''}>
         <span><strong>${SHARE_STYLES[i]}</strong><span class="share-text">${esc(msg)}</span></span></label>`).join('')}
@@ -677,7 +906,7 @@ async function sendToClient(d) {
       const choice = Number(m.el.querySelector('input[name=msg]:checked').value);
       const remember = m.el.querySelector('#remember').checked;
       m.close();
-      const sending = deliver(d, messages[choice], filePromise);
+      const sending = deliver(d, messages[choice], filePromise, onSent);
       if (remember) {
         const shareChoices = { ...(state.me.user.shareChoices || {}), [d.type]: choice };
         await api('/me', { method: 'PATCH', body: { shareChoices } });
@@ -688,11 +917,183 @@ async function sendToClient(d) {
     });
 }
 
+// ---------- Mes prix (tarifs habituels de l'artisan) ----------
+async function renderTarifs() {
+  if (!has('documents')) {
+    view.innerHTML = `<div class="main-header"><h1>Mes prix</h1></div>${upsell('documents')}`;
+    return;
+  }
+  const { items } = await api('/catalogue');
+  const vat = state.me.user.vatRate;
+  view.innerHTML = `
+    <div class="main-header"><h1>Mes prix</h1></div>
+    <div class="stack">
+      <form class="card" id="form">
+        <h2>Ajouter un prix</h2>
+        <p class="muted small">Enregistrez une fois vos tarifs habituels : l’assistant les reprend tout seul dans vos devis. Vous pouvez aussi lui dire « retiens que ma pose de carrelage est à 45 € le m² ».</p>
+        <div class="row">
+          <div class="field" style="flex:2"><label>Prestation</label><input name="label" required placeholder="Ex. Pose carrelage"></div>
+          <div class="field"><label>Prix HT (€)</label><input name="unit_price" type="number" step="0.01" min="0" required></div>
+          <div class="field"><label>Unité</label><input name="unit" list="units" value="u"></div>
+          <div class="field"><label>TVA %</label><input name="vat_rate" type="number" step="0.1" min="0" max="100" value="${vat}"></div>
+        </div>
+        <datalist id="units">${['u', 'h', 'm²', 'ml', 'm³', 'forfait', 'jour', 'km'].map((u) => `<option value="${u}">`).join('')}</datalist>
+        <button class="btn btn-primary" type="submit">Enregistrer</button>
+      </form>
+      <div class="card">
+        ${items.length ? `<div class="table-wrap"><table><thead><tr><th>Prestation</th><th class="num">Prix HT</th><th>Unité</th><th class="num">TVA</th><th></th></tr></thead><tbody>
+        ${items.map((t) => `<tr><td>${esc(t.label)}</td><td class="num">${eur(t.unit_price)}</td><td>${esc(t.unit)}</td><td class="num">${t.vat_rate ?? vat} %</td>
+          <td class="actions"><button class="btn btn-small btn-danger" data-del="${t.id}" aria-label="Supprimer">✕</button></td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="empty">Aucun prix enregistré pour l’instant.</p>'}
+      </div>
+    </div>`;
+  document.getElementById('form').addEventListener('submit', (e) =>
+    attempt(async () => {
+      e.preventDefault();
+      await api('/catalogue', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
+      toast('Prix enregistré');
+      router();
+    }),
+  );
+  view.querySelectorAll('[data-del]').forEach((b) =>
+    b.addEventListener('click', () =>
+      attempt(async () => {
+        await api(`/catalogue/${b.dataset.del}`, { method: 'DELETE' });
+        router();
+      }),
+    ),
+  );
+}
+
+// ---------- Déclaration URSSAF (micro-entrepreneur) ----------
+const URSSAF_STATUS = {
+  a_declarer: '<span class="badge badge-warn">À déclarer</span>',
+  en_cours: '<span class="badge">En cours</span>',
+  passee: '<span class="badge badge-ok">Délai passé</span>',
+  a_venir: '',
+};
+
+async function renderUrssaf(query) {
+  if (!has('documents')) {
+    view.innerHTML = `<div class="main-header"><h1>Déclaration URSSAF</h1></div>${upsell('documents')}`;
+    return;
+  }
+  const year = Number(query.get('annee')) || new Date().getFullYear();
+  const r = await api(`/urssaf?annee=${year}`);
+  const now = r.periods.find((p) => p.status === 'a_declarer') || r.periods.find((p) => p.status === 'en_cours');
+  view.innerHTML = `
+    <div class="main-header"><h1>Déclaration URSSAF</h1>
+      <div class="header-actions"><select id="year" style="width:auto">${[0, 1, 2].map((i) => new Date().getFullYear() - i).map((y) => `<option ${y === year ? 'selected' : ''}>${y}</option>`).join('')}</select></div></div>
+    ${now ? `<div class="card highlight" style="margin-bottom:16px">
+      <div class="label muted small">${now.status === 'a_declarer' ? 'À déclarer maintenant' : 'Période en cours'} · ${esc(now.label)}</div>
+      <div class="value big">${eur(now.total_ht)}</div>
+      <p class="muted small" style="margin:0">Chiffre d’affaires encaissé hors taxes, à déclarer avant le <strong>${frDate(now.deadline)}</strong> sur autoentrepreneur.urssaf.fr.</p>
+    </div>` : ''}
+    <div class="card">
+      <div class="main-header" style="margin-bottom:8px"><h2 style="margin:0">Année ${year}</h2>
+        <div class="choice" style="margin:0">
+          <input type="radio" name="per" id="per-m" value="mensuelle" ${r.period === 'mensuelle' ? 'checked' : ''}><label for="per-m">Je déclare tous les mois</label>
+          <input type="radio" name="per" id="per-t" value="trimestrielle" ${r.period === 'trimestrielle' ? 'checked' : ''}><label for="per-t">Tous les trimestres</label>
+        </div></div>
+      <div class="table-wrap"><table><thead><tr><th>Période</th><th class="num">CA encaissé HT</th><th class="num">Factures</th><th>À déclarer avant le</th><th></th></tr></thead><tbody>
+      ${r.periods.map((p) => `<tr class="${p === now ? 'row-highlight' : ''}"><td>${esc(p.label)}</td><td class="num">${eur(p.total_ht)}</td><td class="num">${p.count}</td><td>${frDate(p.deadline)}</td><td>${URSSAF_STATUS[p.status]}</td></tr>`).join('')}
+      <tr><td><strong>Total ${year}</strong></td><td class="num"><strong>${eur(r.total_ht)}</strong></td><td></td><td></td><td></td></tr>
+      </tbody></table></div>
+      <p style="margin-top:16px"><a class="btn" href="/api/urssaf/livre-recettes?annee=${year}" download>Télécharger le livre des recettes ${year} (Excel)</a></p>
+      <p class="muted small">Seules les factures marquées « Payée » sont comptées, à leur date de paiement. Le livre des recettes est obligatoire pour les micro-entrepreneurs : gardez-le avec vos factures. Si vous vendez aussi du matériel, séparez la part « vente » de la part « prestation » lors de votre déclaration. En cas de doute, l’URSSAF ou un comptable vous renseigne.</p>
+    </div>`;
+  document.getElementById('year').addEventListener('change', (e) => (location.hash = `urssaf?annee=${e.target.value}`));
+  view.querySelectorAll('input[name=per]').forEach((i) =>
+    i.addEventListener('change', () =>
+      attempt(async () => {
+        await api('/me', { method: 'PATCH', body: { urssafPeriod: i.value } });
+        state.me.user.urssafPeriod = i.value;
+        router();
+      }),
+    ),
+  );
+}
+
+// ---------- Abonnements du foyer ----------
+const ABO_CATEGORIES = {
+  internet: 'Box internet', mobile: 'Forfait mobile', energie: 'Énergie', assurance: 'Assurance', banque: 'Banque',
+  streaming: 'Streaming / TV', sport: 'Sport', presse: 'Presse', logiciel: 'Logiciel / appli', autre: 'Autre',
+};
+const ABO_FREQ = { mensuelle: 'par mois', trimestrielle: 'par trimestre', annuelle: 'par an' };
+
+async function renderAbonnements() {
+  if (!has('abonnements')) {
+    view.innerHTML = `<div class="main-header"><h1>Abonnements</h1></div>${upsell('abonnements')}`;
+    return;
+  }
+  const { abonnements, totalMensuel, totalAnnuel } = await api('/abonnements');
+  const soon = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const today = todayIso();
+  view.innerHTML = `
+    <div class="main-header"><h1>Abonnements</h1></div>
+    <div class="stats">
+      <div class="card stat"><div class="label">Coût par mois</div><div class="value">${eur(totalMensuel)}</div></div>
+      <div class="card stat"><div class="label">Coût par an</div><div class="value">${eur(totalAnnuel)}</div></div>
+      <div class="card stat"><div class="label">Abonnements</div><div class="value">${abonnements.length}</div></div>
+    </div>
+    <div class="stack">
+      <form class="card" id="form">
+        <h2>Ajouter un abonnement</h2>
+        <div class="row">
+          <div class="field" style="flex:2"><label>Nom</label><input name="name" required placeholder="Ex. Box internet, salle de sport…"></div>
+          <div class="field"><label>Catégorie</label><select name="category">${Object.entries(ABO_CATEGORIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+          <div class="field"><label>Prix (€)</label><input name="amount" type="number" step="0.01" min="0"></div>
+          <div class="field"><label>Payé</label><select name="frequency">${Object.entries(ABO_FREQ).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Prochain prélèvement ou renouvellement</label><input name="next_renewal" type="date"></div>
+          <div class="field"><label>Fin d’engagement (si vous la connaissez)</label><input name="commitment_end" type="date"></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Ajouter</button>
+      </form>
+      <div class="card">
+        ${abonnements.length ? `<div class="table-wrap"><table><thead><tr><th>Abonnement</th><th class="num">Prix</th><th>Prochain renouvellement</th><th>Engagement</th><th></th></tr></thead><tbody>
+        ${abonnements.map((a) => `<tr>
+          <td>${esc(a.name)}<div class="muted small">${ABO_CATEGORIES[a.category] || ''}</div></td>
+          <td class="num">${a.amount != null ? `${eur(a.amount)} <span class="muted small">${ABO_FREQ[a.frequency]}</span>` : '—'}</td>
+          <td>${a.next_renewal ? (a.next_renewal <= soon ? `<span class="badge badge-warn">${frDate(a.next_renewal)}</span>` : frDate(a.next_renewal)) : '—'}</td>
+          <td>${a.commitment_end ? (a.commitment_end <= today ? '<span class="badge badge-ok">Sans engagement</span>' : `jusqu’au ${frDate(a.commitment_end)}`) : '—'}</td>
+          <td class="actions"><button class="btn btn-small" data-cancel="${a.id}">Lettre de résiliation</button>
+            <button class="btn btn-small btn-danger" data-del="${a.id}" aria-label="Supprimer">✕</button></td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="muted small">Les renouvellements des 30 prochains jours apparaissent en orange, et sur votre tableau de bord.</p>` : '<p class="empty">Ajoutez vos abonnements (box, téléphone, assurances, salle de sport…) pour savoir combien ils vous coûtent et quand ils se renouvellent.</p>'}
+      </div>
+    </div>`;
+  document.getElementById('form').addEventListener('submit', (e) =>
+    attempt(async () => {
+      e.preventDefault();
+      await api('/abonnements', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
+      toast('Abonnement ajouté');
+      router();
+    }),
+  );
+  view.querySelectorAll('[data-cancel]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const a = abonnements.find((x) => x.id === Number(b.dataset.cancel));
+      askAssistant(`Écris une lettre de résiliation pour mon abonnement « ${a.name} »${a.commitment_end ? ` (fin d’engagement le ${frDate(a.commitment_end)})` : ''}. Dis-moi aussi comment l’envoyer et dans quel délai la résiliation prend effet.`);
+    }),
+  );
+  view.querySelectorAll('[data-del]').forEach((b) =>
+    b.addEventListener('click', () =>
+      attempt(async () => {
+        if (!confirm('Supprimer cet abonnement de la liste ?')) return;
+        await api(`/abonnements/${b.dataset.del}`, { method: 'DELETE' });
+        router();
+      }),
+    ),
+  );
+}
+
 // ---------- Abonnement ----------
 const PLAN_FEATURES = {
-  gratuit: ['10 messages IA / mois', '5 échéances'],
-  foyer: ['300 messages IA / mois', 'Échéances illimitées', 'Budget du foyer', 'Courriers administratifs'],
-  artisan: ['2 000 messages IA / mois', 'Devis & factures illimités', 'Fichier clients', 'Suivi des impayés', 'Budget & courriers'],
+  gratuit: ['10 messages IA / mois', '5 échéances', 'Photo d’un courrier expliquée'],
+  foyer: ['300 messages IA / mois', 'Échéances illimitées', 'Budget du foyer', 'Suivi des abonnements', 'Courriers et lettres de résiliation', 'Photos de tickets et de courriers'],
+  artisan: ['2 000 messages IA / mois', 'Devis & factures illimités', 'Devis accepté en ligne par le client', 'Factures d’acompte', 'Montant à déclarer à l’URSSAF', 'Fichier clients et vos prix enregistrés', 'Budget, abonnements & courriers'],
 };
 
 async function renderBilling(query) {

@@ -19,7 +19,8 @@ Ton rôle : faire gagner du temps sur la paperasse. Tu aides à :
 - suivre les échéances (impôts, loyer, assurances, énergie, URSSAF, TVA, abonnements…) ;
 - tenir le budget (dépenses et revenus) ;
 - rédiger des courriers administratifs (résiliation, réclamation, demande de délai, contestation, relance de paiement…) ;
-- pour les artisans : gérer les clients, créer des devis et des factures, transformer un devis en facture, suivre les impayés.
+- suivre les abonnements du foyer (box, téléphone, assurances, salle de sport…) et préparer leur résiliation ;
+- pour les artisans : gérer les clients, créer des devis et des factures, des factures d'acompte, transformer un devis en facture, suivre les impayés, préparer la déclaration de chiffre d'affaires à l'URSSAF.
 
 Règles :
 - Réponds en français, de façon claire et concise. Utilise des listes quand c'est utile.
@@ -28,7 +29,18 @@ Règles :
 - Les dates passées aux outils sont au format AAAA-MM-JJ. Interprète « fin du mois », « dans 15 jours », etc. à partir de la date du jour fournie.
 - Pour un courrier, rédige un modèle complet prêt à copier, avec les champs à compléter entre crochets.
 - Tu donnes des informations générales sur les démarches administratives françaises, pas un conseil juridique ou fiscal personnalisé : pour les cas complexes, recommande un professionnel (expert-comptable, avocat, service des impôts).
-- Si une fonctionnalité n'est pas incluse dans l'offre de l'utilisateur, l'outil correspondant n'est pas disponible : explique simplement quelle offre la débloque.`;
+- Si une fonctionnalité n'est pas incluse dans l'offre de l'utilisateur, l'outil correspondant n'est pas disponible : explique simplement quelle offre la débloque.
+
+Tarifs de l'artisan :
+- Quand tu crées un devis ou une facture, reprends les tarifs habituels de l'artisan (fournis plus bas) dès qu'une prestation correspond : même prix, même unité, même TVA. N'invente jamais un prix : si une prestation n'a pas de tarif connu et que l'utilisateur ne donne pas de prix, demande-le.
+- Si l'artisan donne un prix en disant de le retenir (« retiens », « mon tarif », « à partir de maintenant »), enregistre-le avec enregistrer_tarif.
+
+Photos et documents envoyés :
+- Ticket de caisse ou facture d'un fournisseur : lis le nom du magasin, la date et le montant TTC, choisis une catégorie (matériaux, outillage, carburant, courses…) et enregistre la dépense avec ajouter_operation. Si le montant ou la date ne sont pas lisibles, demande-les. Indique la TVA si elle est visible.
+- Courrier administratif (impôts, CAF, URSSAF, banque, énergie, amende…) : explique en mots simples qui écrit, pourquoi, ce que la personne doit faire et avant quand. S'il y a une date limite ou un paiement, ajoute une échéance avec ajouter_echeance et dis-le. Ne recopie pas de numéros sensibles (numéro fiscal, IBAN) dans ta réponse.
+- Si la photo est floue ou illisible, dis-le et demande une nouvelle photo.
+
+URSSAF : le chiffre d'affaires d'un micro-entrepreneur se déclare à l'encaissement (date de paiement de la facture), en montant hors taxes. Utilise chiffre_affaires_urssaf pour donner les montants ; rappelle de vérifier sur autoentrepreneur.urssaf.fr. Ne calcule pas les cotisations : les taux dépendent de l'activité.`;
 
 // ---------- Définition des outils ----------
 const TOOLS = [
@@ -179,6 +191,76 @@ const TOOLS = [
     input_schema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
     run: (user, i) => svc.convertQuoteToInvoice(user, i.id),
   },
+  {
+    feature: 'documents',
+    name: 'creer_facture_acompte',
+    description:
+      "Crée une facture d'acompte sur un devis, en pourcentage (ex. 30) ou en montant TTC. Les acomptes seront déduits automatiquement de la facture finale.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        devis_id: { type: 'integer' },
+        pourcentage: { type: 'number', description: 'Pourcentage du devis, ex. 30' },
+        montant_ttc: { type: 'number', description: 'Montant TTC de l’acompte, si donné à la place du pourcentage' },
+      },
+      required: ['devis_id'],
+    },
+    run: (user, i) => svc.createDeposit(user, i.devis_id, { percent: i.pourcentage, amount: i.montant_ttc }),
+  },
+  {
+    feature: 'documents',
+    name: 'enregistrer_tarif',
+    description: "Enregistre (ou met à jour) un tarif habituel de l'artisan, repris ensuite dans ses devis.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', description: 'Nom de la prestation, ex. « Pose carrelage »' },
+        unit: { type: 'string', description: 'u, h, m², ml, forfait…' },
+        unit_price: { type: 'number', description: 'Prix unitaire HT en euros' },
+        vat_rate: { type: 'number', description: 'Taux de TVA en %, si différent du taux par défaut' },
+      },
+      required: ['label', 'unit_price'],
+    },
+    run: (user, i) => svc.saveCatalogItem(user, i),
+  },
+  {
+    feature: 'documents',
+    name: 'chiffre_affaires_urssaf',
+    description: "Chiffre d'affaires encaissé (HT) par mois ou par trimestre, avec les dates limites de déclaration à l'URSSAF.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        annee: { type: 'integer' },
+        periode: { type: 'string', enum: ['mensuelle', 'trimestrielle'] },
+      },
+    },
+    run: (user, i) => svc.urssafSummary(user, { year: i.annee, period: i.periode }),
+  },
+  {
+    feature: 'abonnements',
+    name: 'lister_abonnements',
+    description: 'Liste les abonnements du foyer avec leur coût et leur prochaine date de renouvellement.',
+    input_schema: { type: 'object', properties: {} },
+    run: (user) => svc.listAbonnements(user),
+  },
+  {
+    feature: 'abonnements',
+    name: 'ajouter_abonnement',
+    description: 'Ajoute un abonnement à suivre (box internet, mobile, assurance, streaming, salle de sport…).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'ex. « Box internet Free »' },
+        category: { type: 'string', enum: svc.ABO_CATEGORIES },
+        amount: { type: 'number', description: 'Prix par période, en euros' },
+        frequency: { type: 'string', enum: svc.ABO_FREQUENCIES },
+        next_renewal: { type: 'string', description: 'Prochain renouvellement ou prélèvement, AAAA-MM-JJ' },
+        commitment_end: { type: 'string', description: "Fin de la période d'engagement, AAAA-MM-JJ" },
+      },
+      required: ['name'],
+    },
+    run: (user, i) => svc.createAbonnement(user, i),
+  },
 ];
 
 function toolsFor(user) {
@@ -193,6 +275,14 @@ function userContext(user) {
   ];
   if (user.account_type === 'artisan' && user.company_name) {
     lines.push(`Entreprise : ${user.company_name}${user.siret ? `, SIRET ${user.siret}` : ''}. TVA par défaut : ${user.vat_rate} %.`);
+  }
+  if (hasFeature(user, 'documents')) {
+    const tarifs = db.prepare('SELECT * FROM catalog_items WHERE user_id = ? ORDER BY label COLLATE NOCASE LIMIT 150').all(user.id);
+    lines.push(
+      tarifs.length
+        ? `Tarifs habituels de l'artisan (HT) :\n${tarifs.map((t) => `- ${t.label} : ${t.unit_price} € / ${t.unit}${t.vat_rate != null ? ` (TVA ${t.vat_rate} %)` : ''}`).join('\n')}`
+        : "Tarifs habituels de l'artisan : aucun enregistré pour l'instant.",
+    );
   }
   const locked = [];
   if (!hasFeature(user, 'budget')) locked.push('budget et courriers illimités (offre Foyer 4,99 €/mois)');
@@ -226,8 +316,23 @@ function runTool(user, name, input) {
 }
 
 // Envoie un message à l'assistant et renvoie sa réponse texte + la liste des actions effectuées.
-async function chat(user, text) {
-  const message = String(text || '').trim().slice(0, 8000);
+const ATTACHMENT_TYPES = { 'image/jpeg': 5, 'image/png': 5, 'image/webp': 5, 'image/gif': 5, 'application/pdf': 8 }; // Mo max
+
+// Photo (ticket, courrier) ou PDF joint au message : vérifié puis transmis à Claude, jamais conservé.
+function attachmentBlock(att) {
+  if (!att) return null;
+  const maxMb = ATTACHMENT_TYPES[att.media_type];
+  if (!maxMb || typeof att.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(att.data)) {
+    throw new svc.AppError('Fichier non pris en charge : envoyez une photo (JPEG, PNG) ou un PDF.');
+  }
+  if ((att.data.length * 3) / 4 > maxMb * 1024 * 1024) throw new svc.AppError(`Fichier trop lourd (${maxMb} Mo maximum).`);
+  const source = { type: 'base64', media_type: att.media_type, data: att.data };
+  return att.media_type === 'application/pdf' ? { type: 'document', source } : { type: 'image', source };
+}
+
+async function chat(user, text, attachment) {
+  const file = attachmentBlock(attachment);
+  const message = String(text || '').trim().slice(0, 8000) || (file ? 'Voici un document : analyse-le et fais le nécessaire.' : '');
   if (!message) throw new svc.AppError('Message vide.');
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     throw new svc.AppError("L'assistant IA n'est pas configuré (clé ANTHROPIC_API_KEY manquante).", 503);
@@ -238,7 +343,7 @@ async function chat(user, text) {
   const apiTools = tools.map(({ name, description, input_schema }) => ({ name, description, input_schema }));
   const messages = [
     ...loadHistory(user),
-    { role: 'user', content: `${message}` },
+    { role: 'user', content: file ? [file, { type: 'text', text: message }] : message },
   ];
   const actions = [];
   let reply = '';
@@ -292,7 +397,7 @@ async function chat(user, text) {
 
   if (!reply) reply = 'C’est fait.';
   const insert = db.prepare('INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)');
-  insert.run(user.id, 'user', message);
+  insert.run(user.id, 'user', file ? `[${file.type === 'image' ? 'Photo jointe' : 'PDF joint'}] ${message}` : message);
   insert.run(user.id, 'assistant', reply);
   return { reply, actions, usage: svc.getUsage(user) };
 }

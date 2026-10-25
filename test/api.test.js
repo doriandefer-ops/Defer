@@ -256,3 +256,147 @@ test('code « Artisan gratuit à vie » : valable une seule fois', async () => {
     delete process.env.LIFETIME_CODES;
   }
 });
+
+async function artisan(email) {
+  const a = agent();
+  await a('/auth/register', { method: 'POST', body: { email, password: 'motdepasse', name: 'Maçonnerie Leroy', accountType: 'artisan' } });
+  await a('/billing/checkout', { method: 'POST', body: { plan: 'artisan' } });
+  return a;
+}
+const pub = async (path, body) => {
+  const res = await fetch(`${base}/public/devis/${path}`, body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : {});
+  return { status: res.status, body: res.headers.get('content-type')?.includes('json') ? await res.json() : null, res };
+};
+
+test('devis accepté en ligne par le client, sans compte', async () => {
+  const a = await artisan('ligne@test.fr');
+  const q = (await a('/documents', { method: 'POST', body: { type: 'devis', client_name: 'M. Petit', items: [{ description: 'Muret', unit_price: 1000 }] } })).body.document;
+  const { url } = (await a(`/documents/${q.id}/lien`, { method: 'POST', body: {} })).body;
+  const token = url.split('/d/')[1];
+  assert.match(token, /^[\w-]{24}$/);
+  assert.equal((await a(`/documents/${q.id}/lien`, { method: 'POST', body: {} })).body.url, url); // lien stable
+
+  assert.equal((await pub('inconnu-inconnu-inconnu')).status, 404);
+  const view = await pub(token);
+  assert.equal(view.status, 200);
+  assert.equal(view.body.document.number, q.number);
+  assert.equal(view.body.issuer.companyName, 'Maçonnerie Leroy');
+  assert.equal(view.body.document.client.email, undefined); // pas de données inutiles
+  assert.equal(view.body.document.share_token, undefined);
+  assert.equal((await pub(`${token}/pdf`)).res.headers.get('content-type'), 'application/pdf');
+
+  assert.equal((await pub(`${token}/accepter`, { name: 'Jean Petit' })).status, 400); // case non cochée
+  const ok = await pub(`${token}/accepter`, { name: 'Jean Petit', accept: true });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.document.status, 'accepte');
+  assert.equal((await pub(`${token}/accepter`, { name: 'Jean Petit', accept: true })).status, 409);
+  assert.equal((await pub(`${token}/refuser`, {})).status, 409);
+
+  const doc = (await a(`/documents/${q.id}`)).body.document;
+  assert.equal(doc.status, 'accepte');
+  assert.equal(doc.accepted_name, 'Jean Petit');
+  assert.ok(doc.viewed_at);
+  assert.equal((await a('/dashboard')).body.reponsesDevis[0].number, q.number);
+
+  // Un devis expiré ne peut plus être accepté ; une facture n'a pas de lien
+  const old = (await a('/documents', { method: 'POST', body: { type: 'devis', due_date: '2020-01-01', items: [{ description: 'X', unit_price: 10 }] } })).body.document;
+  const oldToken = (await a(`/documents/${old.id}/lien`, { method: 'POST', body: {} })).body.url.split('/d/')[1];
+  assert.equal((await pub(`${oldToken}/accepter`, { name: 'Jean Petit', accept: true })).status, 409);
+  const inv = (await a('/documents', { method: 'POST', body: { type: 'facture', items: [{ description: 'X', unit_price: 10 }] } })).body.document;
+  assert.equal((await a(`/documents/${inv.id}/lien`, { method: 'POST', body: {} })).status, 400);
+});
+
+test('acompte puis facture finale : les acomptes sont déduits', async () => {
+  const a = await artisan('acompte@test.fr');
+  const q = (await a('/documents', {
+    method: 'POST',
+    body: { type: 'devis', client_name: 'Mme Roux', items: [
+      { description: 'Salle de bain', quantity: 1, unit_price: 1000, vat_rate: 10 },
+      { description: 'Meuble', quantity: 1, unit_price: 500, vat_rate: 20 },
+    ] },
+  })).body.document;
+  assert.equal(q.total_ttc, 1700);
+  const dep = await a(`/documents/${q.id}/acompte`, { method: 'POST', body: { percent: 30 } });
+  assert.equal(dep.status, 201);
+  assert.equal(dep.body.document.kind, 'acompte');
+  assert.equal(dep.body.document.total_ttc, 510);
+  assert.equal(dep.body.document.items.length, 2); // une ligne par taux de TVA
+  assert.equal((await a(`/documents/${q.id}/acompte`, { method: 'POST', body: { percent: 80 } })).status, 400); // dépasse 100 %
+  const final = (await a(`/documents/${q.id}/facturer`, { method: 'POST', body: {} })).body.document;
+  assert.equal(final.total_ttc, 1190);
+  assert.equal(final.total_ht, 1050);
+});
+
+test('mes prix, encaissement et déclaration URSSAF', async () => {
+  const a = await artisan('urssaf@test.fr');
+  await a('/catalogue', { method: 'POST', body: { label: 'Pose carrelage', unit: 'm²', unit_price: 45 } });
+  await a('/catalogue', { method: 'POST', body: { label: 'pose carrelage', unit: 'm²', unit_price: 48 } }); // mise à jour, pas de doublon
+  const { items } = (await a('/catalogue')).body;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].unit_price, 48);
+  const ai = require('../src/ai');
+  const db = require('../src/db');
+  const user = db.prepare("SELECT * FROM users WHERE email = 'urssaf@test.fr'").get();
+  assert.match(ai.userContext(user), /pose carrelage : 48 € \/ m²/i);
+
+  const year = new Date().getFullYear();
+  const f = (await a('/documents', { method: 'POST', body: { type: 'facture', client_name: 'M. Blanc', items: [{ description: 'Pose', quantity: 10, unit_price: 48 }] } })).body.document;
+  assert.equal((await a(`/documents/${f.id}/statut`, { method: 'POST', body: { status: 'payee', paid_at: '2999-01-01' } })).status, 400);
+  await a(`/documents/${f.id}/statut`, { method: 'POST', body: { status: 'payee', paid_at: `${year}-01-15`, payment_method: 'cheque' } });
+  const t = (await a(`/urssaf?annee=${year}&periode=trimestrielle`)).body;
+  assert.equal(t.periods.length, 4);
+  assert.equal(t.periods[0].total_ht, 480);
+  assert.equal(t.periods[0].deadline, `${year}-04-30`);
+  const m = (await a(`/urssaf?annee=${year}&periode=mensuelle`)).body;
+  assert.equal(m.periods[0].total_ht, 480);
+  assert.equal(m.periods[0].deadline, new Date(Date.UTC(year, 2, 0)).toISOString().slice(0, 10)); // fin février
+
+  const res = await fetch(`${base}/urssaf/livre-recettes?annee=${year}`, { headers: { cookie: (await loginCookie('urssaf@test.fr')) } });
+  const csv = await res.text();
+  assert.match(res.headers.get('content-type'), /text\/csv/);
+  assert.match(csv, /"15\/01\/\d{4}";"F-\d{4}-0001";"M. Blanc";"Pose";"480,00";"576,00";"Chèque"/);
+
+  // Repasser la facture en « envoyée » la retire du chiffre d'affaires
+  await a(`/documents/${f.id}/statut`, { method: 'POST', body: { status: 'envoyee' } });
+  assert.equal((await a(`/urssaf?annee=${year}`)).body.total_ht, 0);
+});
+
+async function loginCookie(email) {
+  const r = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'motdepasse' }) });
+  return r.headers.get('set-cookie').split(';')[0];
+}
+
+test('abonnements du foyer : coût et renouvellement', async () => {
+  const free = agent();
+  await free('/auth/register', { method: 'POST', body: { email: 'abo-free@test.fr', password: 'motdepasse', name: 'Léa' } });
+  assert.equal((await free('/abonnements')).status, 403);
+
+  const a = agent();
+  await a('/auth/register', { method: 'POST', body: { email: 'abo@test.fr', password: 'motdepasse', name: 'Léa' } });
+  await a('/billing/checkout', { method: 'POST', body: { plan: 'foyer' } });
+  await a('/abonnements', { method: 'POST', body: { name: 'Box', category: 'internet', amount: 30, frequency: 'mensuelle', next_renewal: '2020-01-10' } });
+  await a('/abonnements', { method: 'POST', body: { name: 'Assurance', amount: 240, frequency: 'annuelle' } });
+  const r = (await a('/abonnements')).body;
+  assert.equal(r.totalMensuel, 50);
+  assert.equal(r.totalAnnuel, 600);
+  const box = r.abonnements.find((x) => x.name === 'Box');
+  assert.ok(box.next_renewal >= new Date().toISOString().slice(0, 10)); // date passée → avancée au prochain mois
+  assert.ok(box.next_renewal.endsWith('-10'));
+  assert.ok((await a('/dashboard')).body.renouvellements.some((x) => x.name === 'Box'));
+});
+
+test('photo envoyée à l’assistant : format vérifié', async () => {
+  const a = agent();
+  await a('/auth/register', { method: 'POST', body: { email: 'photo@test.fr', password: 'motdepasse', name: 'Max' } });
+  const key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'sk-test'; // la vérification du fichier a lieu avant tout appel à Claude
+  const bad = await a('/chat', { method: 'POST', body: { message: '', attachment: { media_type: 'text/html', data: 'PGI+' } } });
+  assert.equal(bad.status, 400);
+  const big = await a('/chat', { method: 'POST', body: { message: 'x', attachment: { media_type: 'image/jpeg', data: 'A'.repeat(7 * 1024 * 1024) } } });
+  assert.equal(big.status, 400);
+  assert.equal((await a('/me')).body.usage.used, 0); // refusé avant de consommer un message
+  if (key) process.env.ANTHROPIC_API_KEY = key;
+  else delete process.env.ANTHROPIC_API_KEY;
+});
