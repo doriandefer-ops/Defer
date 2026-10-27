@@ -1,3 +1,6 @@
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const express = require('express');
 const db = require('./db');
@@ -28,6 +31,26 @@ app.use((_req, res, next) => {
 });
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
+
+// ---------- Changement d'hébergement ----------
+// Export de la base pour la nouvelle installation (actif seulement si MIGRATION_TOKEN est défini).
+app.get('/api/migration/export', (req, res) => {
+  const expected = process.env.MIGRATION_TOKEN || '';
+  const given = String(req.get('x-migration-token') || '');
+  const ok = expected.length >= 32 && given.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+  if (!ok) return res.status(404).json({ error: 'Route inconnue.' });
+  const tmp = path.join(os.tmpdir(), `mdia-export-${Date.now()}.db`);
+  db.exec(`VACUUM INTO '${tmp}'`); // copie cohérente, même pendant que le site tourne
+  res.sendFile(tmp, () => fs.rmSync(tmp, { force: true }));
+});
+
+// Ancienne adresse : tout est renvoyé vers la nouvelle (liens des flyers, devis déjà envoyés…).
+app.use((req, res, next) => {
+  const target = process.env.REDIRECT_TO;
+  if (!target) return next();
+  res.redirect(['GET', 'HEAD'].includes(req.method) ? 301 : 308, target.replace(/\/$/, '') + req.originalUrl);
+});
 
 // Le webhook Stripe a besoin du corps brut : il est déclaré avant express.json().
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billing.handleWebhook);
@@ -310,10 +333,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Erreur interne du serveur.' });
 });
 
-if (require.main === module) {
+function start() {
   const port = Number(process.env.PORT) || 3000;
   app.listen(port, () => {
     console.log(`MDIA est lancé sur http://localhost:${port}`);
+    if (process.env.REDIRECT_TO) return console.log(`Redirection vers ${process.env.REDIRECT_TO}.`);
     if (billing.isDemo() && billing.demoAllowed()) console.log('Paiements : mode démo (STRIPE_SECRET_KEY non défini).');
     if (billing.isDemo() && !billing.demoAllowed()) console.log('Paiements : Stripe non configuré, les abonnements payants sont désactivés.');
     billing.ensureStripeSetup().catch(() => {});
@@ -322,4 +346,7 @@ if (require.main === module) {
   });
 }
 
+if (require.main === module) start();
+
 module.exports = app;
+module.exports.start = start;

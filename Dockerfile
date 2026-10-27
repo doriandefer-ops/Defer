@@ -10,4 +10,4 @@ ENV PORT=3000 DATABASE_PATH=/data/defer.db
 RUN mkdir -p /data
 VOLUME /data
 EXPOSE 3000
-CMD ["node", "--disable-warning=ExperimentalWarning", "src/server.js"]
+CMD ["node", "--disable-warning=ExperimentalWarning", "src/start.js"]

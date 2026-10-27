@@ -39,8 +39,12 @@ async function ensureWebhook() {
   if (!PUBLIC_URL.startsWith('https://')) return; // Stripe n'accepte que des adresses publiques en https
   if (getSetting('stripe_webhook_url') === WEBHOOK_URL && getSetting('stripe_webhook_secret')) return;
   // Le secret d'un webhook n'est lisible qu'à sa création : on remplace celui qui pointerait déjà ici.
+  // Après un changement d'adresse, l'ancien webhook (enregistré dans la base) est supprimé aussi.
+  const previous = getSetting('stripe_webhook_url');
   const endpoints = await stripe.webhookEndpoints.list({ limit: 100 });
-  for (const ep of endpoints.data.filter((e) => e.url === WEBHOOK_URL)) await stripe.webhookEndpoints.del(ep.id);
+  for (const ep of endpoints.data.filter((e) => e.url === WEBHOOK_URL || e.url === previous)) {
+    await stripe.webhookEndpoints.del(ep.id);
+  }
   const endpoint = await stripe.webhookEndpoints.create({ url: WEBHOOK_URL, enabled_events: WEBHOOK_EVENTS });
   setSetting('stripe_webhook_url', WEBHOOK_URL);
   setSetting('stripe_webhook_secret', endpoint.secret);
