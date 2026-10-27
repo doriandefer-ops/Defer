@@ -127,7 +127,7 @@ function renderPdf(doc, issuer, { link } = {}) {
   );
   if (Number(doc.total_tva) === 0) pdf.text('TVA non applicable, art. 293 B du CGI.', { width: W });
   if (issuer.show_branding !== 0) {
-    pdf.moveDown(1).fillColor('#9a998f').fontSize(7.5).text('Document créé avec MDIA — mdia.onrender.com', { width: W, align: 'right', link: 'https://mdia.onrender.com/?utm=document' });
+    pdf.moveDown(1).fillColor('#9a998f').fontSize(7.5).text('Document créé avec MDIA — mdia-eu.onrender.com', { width: W, align: 'right', link: 'https://mdia-eu.onrender.com/?utm=document' });
   }
   pdf.fillColor(GREEN);
   return pdf;

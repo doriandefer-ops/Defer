@@ -5,10 +5,10 @@
 - **Référencement Google** : titre et description optimisés (« logiciel devis facture artisan »), données structurées, `sitemap.xml`, `robots.txt`.
 - **Aperçu de partage** : une belle image s'affiche quand le lien est partagé sur Facebook, WhatsApp, LinkedIn, SMS…
 - **Mention « Document créé avec MDIA »** en bas des devis et factures : chaque client d'un artisan voit MDIA (désactivable par l'artisan dans Paramètres).
-- **Flyer imprimable** avec QR code : https://mdia.onrender.com/flyer (et `docs/flyer-mdia.pdf`).
+- **Flyer imprimable** avec QR code : https://mdia-eu.onrender.com/flyer (et `docs/flyer-mdia.pdf`).
 - **Codes promo** acceptés au paiement (à créer dans Stripe).
 - **Suivi de chaque canal** dans la page Statistiques : ajoutez `?utm=nom` à vos liens.
-  Exemples : `https://mdia.onrender.com/?utm=facebook`, `?utm=linkedin`, `?utm=presse`, `?utm=whatsapp`.
+  Exemples : `https://mdia-eu.onrender.com/?utm=facebook`, `?utm=linkedin`, `?utm=presse`, `?utm=whatsapp`.
   Le flyer (`?utm=flyer`) et la mention sur les devis (`?utm=document`) sont déjà marqués.
 
 ---
@@ -47,7 +47,7 @@
 >
 > Je cherche **20 artisans pour le tester** et me dire franchement ce qui manque : je vous offre 2 mois de l'offre complète (code LANCEMENT).
 >
-> 👉 https://mdia.onrender.com/?utm=facebook
+> 👉 https://mdia-eu.onrender.com/?utm=facebook
 >
 > Toutes les critiques sont bienvenues, c'est fait pour vous 🙏
 
@@ -55,7 +55,7 @@
 
 > Petit coup de pouce local 🙂 J'ai créé à Castres **MDIA**, un assistant qui aide à gérer les papiers de la maison : il garde en mémoire les échéances (impôts, assurances, loyer…), suit le budget du mois et rédige les courriers (résiliation, réclamation, demande de délai…).
 > Il y a une version gratuite pour essayer, et l'offre complète est à 4,99 €/mois.
-> 👉 https://mdia.onrender.com/?utm=facebook-foyer
+> 👉 https://mdia-eu.onrender.com/?utm=facebook-foyer
 > Vos retours m'aideraient beaucoup !
 
 ### LinkedIn
@@ -70,25 +70,25 @@
 >
 > Je cherche des premiers utilisateurs et des partenaires (experts-comptables, réseaux d'artisans) : vos retours et vos partages comptent énormément.
 >
-> 👉 https://mdia.onrender.com/?utm=linkedin
+> 👉 https://mdia-eu.onrender.com/?utm=linkedin
 >
 > #artisan #BTP #entrepreneuriat #Tarn #Castres #IA
 
 ### Message WhatsApp / SMS à votre entourage
 
 > Salut ! J'ai lancé mon site, **MDIA** : un assistant qui fait les devis, factures et la paperasse des artisans (et aussi des papiers de la maison). Si tu connais un artisan (plombier, électricien, maçon…), tu peux lui transférer ? Il y a 2 mois offerts pour les premiers avec le code LANCEMENT 🙏
-> https://mdia.onrender.com/?utm=whatsapp
+> https://mdia-eu.onrender.com/?utm=whatsapp
 
 ### Fiche Google (Google Business Profile)
 
 - **Nom** : MDIA
 - **Catégorie** : Éditeur de logiciels (ou « Service de conseil aux entreprises »)
 - **Zone desservie** : France (adresse masquée si vous travaillez à domicile)
-- **Site web** : https://mdia.onrender.com/?utm=google-fiche
+- **Site web** : https://mdia-eu.onrender.com/?utm=google-fiche
 - **Description** :
   > MDIA est un assistant administratif en ligne pour les artisans du bâtiment et les particuliers. Devis et factures en une phrase, TVA et numérotation automatiques, suivi des impayés, échéances URSSAF et TVA, courriers administratifs. Conçu à Castres (Tarn). Essai gratuit sans carte bancaire.
 
-Puis sur **Google Search Console** (search.google.com/search-console) : ajoutez `https://mdia.onrender.com` (méthode « Préfixe d'URL » ; je peux ajouter le fichier de vérification au site si Google vous le demande) et envoyez le sitemap `https://mdia.onrender.com/sitemap.xml`.
+Puis sur **Google Search Console** (search.google.com/search-console) : ajoutez `https://mdia-eu.onrender.com` (méthode « Préfixe d'URL » ; je peux ajouter le fichier de vérification au site si Google vous le demande) et envoyez le sitemap `https://mdia-eu.onrender.com/sitemap.xml`.
 
 ### Communiqué pour la presse locale
 
@@ -97,7 +97,7 @@ Puis sur **Google Search Console** (search.google.com/search-console) : ajoutez 
 
 > Madame, Monsieur,
 >
-> Je m'appelle Dorian Defer, j'habite Castres et je viens de lancer **MDIA** (mdia.onrender.com), un assistant en ligne qui gère l'administratif des artisans du bâtiment et des familles.
+> Je m'appelle Dorian Defer, j'habite Castres et je viens de lancer **MDIA** (mdia-eu.onrender.com), un assistant en ligne qui gère l'administratif des artisans du bâtiment et des familles.
 >
 > Les artisans passent en moyenne plusieurs heures par semaine sur leurs devis, factures, relances et déclarations. Avec MDIA, il suffit d'écrire une phrase — « fais un devis pour Mme Martin, 12 m² de carrelage à 45 € le m² » — pour obtenir un devis prêt à envoyer. L'outil suit aussi les factures impayées, rappelle les échéances (URSSAF, TVA, assurances) et rédige les courriers.
 >
@@ -113,7 +113,7 @@ Puis sur **Google Search Console** (search.google.com/search-console) : ajoutez 
 1. **(0–3 s)** Texte à l'écran : « POV : il est 22 h et tu dois encore faire tes devis 😩 »
 2. **(3–12 s)** Écran du téléphone : vous tapez « Fais un devis pour Mme Martin, 12 m² de carrelage à 45 € le m² » → le devis apparaît.
 3. **(12–17 s)** Vous ouvrez le PDF du devis, propre, avec la TVA.
-4. **(17–20 s)** Texte : « MDIA — essai gratuit, lien en bio » + `mdia.onrender.com`
+4. **(17–20 s)** Texte : « MDIA — essai gratuit, lien en bio » + `mdia-eu.onrender.com`
 
 Légende : *Les artisans qui font encore leurs devis à la main le soir… 👀 #artisan #btp #plombier #électricien #devis #autoentrepreneur*
 

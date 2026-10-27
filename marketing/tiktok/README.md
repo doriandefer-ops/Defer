@@ -13,7 +13,7 @@ Astuce : une vraie voix (la vôtre) ou une voix de synthèse TikTok intégrée (
 - **Heures** : 12 h–13 h ou 19 h–21 h (pauses et soirées des artisans).
 - **Son** : choisissez un son tendance à volume bas (onglet « Sons » → « Tendances »).
 - **Couverture** : sélectionnez l’image de couverture fournie (ou la 1re seconde).
-- **Lien** : mettez `mdia.onrender.com/?utm=tiktok` dans la bio (les liens dans les légendes ne sont pas cliquables).
+- **Lien** : mettez `mdia-eu.onrender.com/?utm=tiktok` dans la bio (les liens dans les légendes ne sont pas cliquables).
 - **Les 30 premières minutes** : répondez à chaque commentaire — l’algorithme pousse les vidéos qui font parler.
 - **Commentaire épinglé** : « Lien dans la bio, 2 mois offerts avec le code LANCEMENT 🎁 ».
 - Publiez aussi les mêmes vidéos en **Instagram Reels** et **YouTube Shorts** : 3 fois plus de chances.

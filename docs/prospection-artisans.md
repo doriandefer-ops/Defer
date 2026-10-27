@@ -51,7 +51,7 @@ Codes métiers utiles : `43.22A` plomberie · `43.22B` chauffage/clim · `43.21A
 > - ne plus oublier vos échéances (URSSAF, TVA, assurances, fournisseurs) ;
 > - rédiger vos courriers administratifs en quelques secondes.
 >
-> Vous pouvez l'essayer **gratuitement, sans carte bancaire** : https://mdia.onrender.com
+> Vous pouvez l'essayer **gratuitement, sans carte bancaire** : https://mdia-eu.onrender.com
 > L'offre Artisan complète est ensuite à 29,99 € par mois, sans engagement.
 >
 > Si vous voulez, je peux aussi vous le montrer en 10 minutes, par téléphone ou directement sur un de vos chantiers du coin.
@@ -74,7 +74,7 @@ Codes métiers utiles : `43.22A` plomberie · `43.22B` chauffage/clim · `43.21A
 > Je me permets une petite relance : beaucoup d'artisans me disent passer leurs soirées sur les devis et les factures.
 > Avec MDIA, un devis prend une phrase et 30 secondes.
 >
-> L'essai est gratuit : https://mdia.onrender.com — et je reste disponible si vous voulez une démonstration rapide.
+> L'essai est gratuit : https://mdia-eu.onrender.com — et je reste disponible si vous voulez une démonstration rapide.
 >
 > Bonne fin de semaine,
 > Dorian — 06 31 89 06 96
@@ -106,7 +106,7 @@ Codes métiers utiles : `43.22A` plomberie · `43.22B` chauffage/clim · `43.21A
 > MDIA suit aussi vos factures impayées, vous rappelle vos échéances (URSSAF, TVA, assurances)
 > et rédige vos courriers administratifs.
 >
-> Vous pouvez l'essayer gratuitement, sans carte bancaire, sur **mdia.onrender.com**.
+> Vous pouvez l'essayer gratuitement, sans carte bancaire, sur **mdia-eu.onrender.com**.
 > Je serais également heureux de vous le présenter en 10 minutes : appelez-moi au 06 31 89 06 96.
 >
 > Je vous prie d'agréer, Madame, Monsieur, mes salutations distinguées.
