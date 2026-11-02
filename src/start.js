@@ -1,8 +1,10 @@
-// Point d'entrée en production. Avant d'ouvrir la base, récupère si besoin les données
-// d'une ancienne installation (changement d'hébergement) : voir MIGRATE_FROM_URL dans le README.
+// Point d'entrée en production. Avant d'ouvrir la base, récupère si besoin les données :
+// 1. depuis la sauvegarde externe (hébergement sans disque) : voir S3_* dans le README ;
+// 2. sinon depuis une ancienne installation (changement d'hébergement) : voir MIGRATE_FROM_URL.
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const storage = require('./storage');
 
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'defer.db');
 
@@ -34,9 +36,25 @@ async function importFromOldHost() {
   console.log(`Migration : ${Math.round(data.length / 1024)} Ko de données importés depuis ${from}.`);
 }
 
-importFromOldHost()
-  .catch((err) => {
-    console.error(err.message);
-    process.exit(1); // mieux vaut un démarrage raté qu'un site qui repart avec une base vide
+async function restoreFromStorage() {
+  if (!storage.enabled() || hasUsers()) return;
+  const size = await storage.restore(dbPath);
+  console.log(size ? `Sauvegarde : base récupérée (${Math.round(size / 1024)} Ko).` : 'Sauvegarde : aucune sauvegarde pour l’instant.');
+}
+
+restoreFromStorage()
+  .then(importFromOldHost)
+  .then(() => {
+    const server = require('./server');
+    server.start();
+    if (storage.enabled()) storage.startBackups(require('./db'));
+    else if (process.env.NODE_ENV === 'production' && !process.env.REDIRECT_TO) {
+      console.log('Sauvegarde externe non configurée : sans disque, les données seront perdues au redémarrage.');
+    }
   })
-  .then(() => require('./server').start());
+  .catch((err) => {
+    // Mieux vaut un démarrage raté (Render réessaie) qu'un site qui repart avec une base vide
+    // et écraserait la sauvegarde.
+    console.error(err.message);
+    process.exit(1);
+  });

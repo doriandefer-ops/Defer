@@ -1,14 +1,11 @@
 # Déploiement en un clic sur Render (https://render.com) : New > Blueprint > choisir ce dépôt.
 services:
   - type: web
-    name: mdia
+    name: mdia-eu
     runtime: docker
-    plan: starter            # un disque persistant nécessite une offre payante
+    plan: free               # sans disque : la base est sauvegardée dans un stockage S3 (voir README)
+    region: frankfurt
     healthCheckPath: /healthz
-    disk:
-      name: mdia-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -27,4 +24,14 @@ services:
       - key: STRIPE_PRICE_FOYER
         sync: false
       - key: STRIPE_PRICE_ARTISAN
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
         sync: false

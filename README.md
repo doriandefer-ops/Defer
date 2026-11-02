@@ -33,6 +33,13 @@ npm test               # tests de l'API
    Le fichier `render.yaml` configure tout (Docker, disque persistant pour la base, vérification `/healthz`).
    Renseignez `ANTHROPIC_API_KEY` et `PUBLIC_URL` (l'adresse du site, ex. `https://mdia-eu.onrender.com`).
    Tout autre hébergeur acceptant Docker convient (`Dockerfile` fourni) : montez un volume sur `/data`.
+   **Sans disque (offre gratuite de Render)** : la base est sauvegardée dans un stockage externe compatible S3
+   (Backblaze B2, Cloudflare R2…), quelques secondes après chaque modification et à l'arrêt, puis récupérée au
+   démarrage. Renseignez `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID` et `S3_SECRET_ACCESS_KEY`.
+   Une copie par jour est aussi gardée dans `mdia/journalier/`.
+   **Changement d'hébergement** : sur l'ancien site, `MIGRATION_TOKEN` (32 caractères ou plus) ; sur le nouveau,
+   le même `MIGRATION_TOKEN` et `MIGRATE_FROM_URL` (adresse de l'ancien). Le nouveau copie les données au démarrage
+   si sa base est vide. Mettez ensuite `REDIRECT_TO` (adresse du nouveau) sur l'ancien pour y renvoyer les visiteurs.
 3. **Stripe** : créez un compte sur https://stripe.com et ajoutez sa clé secrète dans `STRIPE_SECRET_KEY` sur
    l'hébergeur. Au démarrage, le site crée tout seul les deux abonnements (4,99 € et 29,99 € par mois, TTC),
    le webhook vers `PUBLIC_URL` et la configuration du portail client. Rien d'autre à faire.
